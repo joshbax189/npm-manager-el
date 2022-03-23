@@ -15,21 +15,39 @@
 (defun npm-manager-parse-package-json ()
   (setq npm-manager-package-json (json-read-file "./package.json")))
 
+;; TODO this is a hash table, should match package-json
+(defvar npm-manager-audit-json nil "Parsed output of npm audit.")
+(make-variable-buffer-local 'npm-manager-audit-json)
+
+(defun npm-manager-run-package-audit ()
+  (let ((tmp nil))
+  (with-temp-buffer
+    (shell-command "npm audit --json" t)
+    (beginning-of-buffer)
+    (setq tmp (json-parse-buffer)))
+  (setq npm-manager-audit-json tmp)))
+
 (defun npm-manager-refresh ()
   "docstring"
   (interactive)
-  (with-temp-buffer
-    (shell-command "npm list --json" t)
-    (beginning-of-buffer)
-    (let ((data (json-parse-buffer)))
-      (unless npm-manager-package-json (npm-manager-parse-package-json))
-      ;; dependencies
-      ;; map over keys- key is package name key.version to print
-      (message (gethash "name" data))
-      (message (gethash "version" data))
-      (let ((deps (gethash "dependencies" data)))
-        (--map (list it (seq-into `(,it ,@(npm-manager-read-dep-type it) ,(gethash "version" (gethash it deps)) "") 'vector))
-               (hash-table-keys deps))))))
+  (unless npm-manager-package-json (npm-manager-parse-package-json))
+  (unless npm-manager-audit-json (npm-manager-run-package-audit))
+  (let ((data nil))
+    (with-temp-buffer
+      (shell-command "npm list --json" t)
+      (beginning-of-buffer)
+      (setq data (json-parse-buffer)))
+    ;; dependencies
+    ;; map over keys- key is package name key.version to print
+    (message (gethash "name" data))
+    (message (gethash "version" data))
+    (let* ((deps (gethash "dependencies" data))
+           (dep-keys (--filter
+                      (not (gethash "extraneous" (gethash it deps)))
+                      (hash-table-keys deps))))
+      (--map (list it
+                   (apply 'vector `(,it ,@(npm-manager-read-dep-type it) ,(gethash "version" (gethash it deps)) ,(npm-manager-read-vuln it))))
+             dep-keys))))
 
 (defun npm-manager-read-dep-type (package-name)
   "docstring"
@@ -41,6 +59,14 @@
         `("dev" ,package-req)
       ;; TODO add peer and optional types
       '("" "")))))
+
+(defun npm-manager-read-vuln (package-name)
+  "docstring"
+  (let ((vulns (gethash "vulnerabilities" npm-manager-audit-json)))
+    (if-let ((package-vuln (gethash package-name vulns)))
+        (gethash "severity" package-vuln)
+      ""
+  )))
 
 ;;;###autoload
 (defun npm-manager ()

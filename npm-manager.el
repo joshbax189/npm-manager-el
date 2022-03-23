@@ -21,24 +21,23 @@
   (with-temp-buffer
     (shell-command "npm list --json" t)
     (beginning-of-buffer)
-    (let ((data (json-parse-buffer))
-          (package-json (json-read-file "./package.json")))
+    (let ((data (json-parse-buffer)))
+      (unless npm-manager-package-json (npm-manager-parse-package-json))
       ;; dependencies
       ;; map over keys- key is package name key.version to print
       (message (gethash "name" data))
       (message (gethash "version" data))
       (let ((deps (gethash "dependencies" data)))
-        (--map (list it (seq-into `(,it ,@(npm-manager-read-dep-type package-json it) ,(gethash "version" (gethash it deps)) "") 'vector))
-               (hash-table-keys deps)))
-    )))
+        (--map (list it (seq-into `(,it ,@(npm-manager-read-dep-type it) ,(gethash "version" (gethash it deps)) "") 'vector))
+               (hash-table-keys deps))))))
 
-(defun npm-manager-read-dep-type (package-json package-name)
+(defun npm-manager-read-dep-type (package-name)
   "docstring"
   (let ((package-sym (intern package-name)))
     ;; TODO switch to case
-  (if-let ((package-req (alist-get package-sym (alist-get 'dependencies package-json))))
+  (if-let ((package-req (alist-get package-sym (alist-get 'dependencies npm-manager-package-json))))
       `("req" ,package-req)
-    (if-let ((package-req (alist-get package-sym (alist-get 'devDependencies package-json))))
+    (if-let ((package-req (alist-get package-sym (alist-get 'devDependencies npm-manager-package-json))))
         `("dev" ,package-req)
       ;; TODO add peer and optional types
       '("" "")))))
@@ -48,6 +47,7 @@
   "docstring"
   (interactive)
   (pop-to-buffer (format "NPM %s" default-directory))
+  (npm-manager-parse-package-json)
   (npm-manager-mode)
   (tablist-revert))
 

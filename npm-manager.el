@@ -13,6 +13,7 @@
 (make-variable-buffer-local 'npm-manager-package-json)
 
 (defun npm-manager-parse-package-json ()
+  "Store parsed package.json in buffer-local variable."
   (setq npm-manager-package-json (json-read-file "./package.json")))
 
 ;; TODO this is a hash table, should match package-json
@@ -20,6 +21,7 @@
 (make-variable-buffer-local 'npm-manager-audit-json)
 
 (defun npm-manager-run-package-audit ()
+  "Store output of npm audit in buffer-local variable."
   (let ((tmp nil))
   (with-temp-buffer
     (shell-command "npm audit --json" t)
@@ -70,7 +72,7 @@
 
 ;;;###autoload
 (defun npm-manager ()
-  "docstring"
+  "Start npm manager interface in the directory."
   (interactive)
   (pop-to-buffer (format "NPM %s" default-directory))
   (npm-manager-parse-package-json)
@@ -78,7 +80,7 @@
   (tablist-revert))
 
 (define-derived-mode npm-manager-mode tabulated-list-mode "NPM Manager"
-  "Major mode."
+  "NPM manager major mode."
   (setq tabulated-list-format [("Package" 48 t) ("Type" 6 t) ("Requested" 12 t) ("Installed" 12 t) ("Messages" 32 nil)])
   (setq tabulated-list-padding 2)
   (setq tabulated-list-sort-key '("Type" . t))

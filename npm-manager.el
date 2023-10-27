@@ -30,10 +30,11 @@
   (setq npm-manager-audit-json tmp)))
 
 (defun npm-manager-refresh ()
-  "docstring"
+  "Refresh the contents of NPM manager display."
   (interactive)
   (unless npm-manager-package-json (npm-manager-parse-package-json))
   (unless npm-manager-audit-json (npm-manager-run-package-audit))
+
   (let ((data nil))
     (with-temp-buffer
       (shell-command "npm list --json" t)
@@ -81,10 +82,14 @@
 
 (define-derived-mode npm-manager-mode tabulated-list-mode "NPM Manager"
   "NPM manager major mode."
-  (setq tabulated-list-format [("Package" 48 t) ("Type" 6 t) ("Requested" 12 t) ("Installed" 12 t) ("Messages" 32 nil)])
-  (setq tabulated-list-padding 2)
-  (setq tabulated-list-sort-key '("Type" . t))
-  (setq tabulated-list-entries #'npm-manager-refresh)
+  (setq tabulated-list-format [("Package" 48 t)
+                               ("Type" 6 t)
+                               ("Requested" 12 t)
+                               ("Installed" 12 t)
+                               ("Messages" 32 nil)]
+        tabulated-list-padding 2
+        tabulated-list-sort-key '("Type" . t)
+        tabulated-list-entries #'npm-manager-refresh)
   (tabulated-list-init-header)
   (tablist-minor-mode))
 

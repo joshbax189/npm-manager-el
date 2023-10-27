@@ -2,8 +2,8 @@
 
 ;;; Code:
 
-;; (require 's)
-;; (require 'aio)
+(require 's)
+(require 'aio)
 (require 'dash)
 (require 'json)
 (require 'tablist)
@@ -29,17 +29,38 @@
     (setq tmp (json-parse-buffer)))
   (setq npm-manager-audit-json tmp)))
 
+(defun npm-manager--capture-command (command-string)
+  "Run npm command COMMAND-STRING and parse output as JSON, returning it as an aio-promise."
+  (-let (((callback . promise) (aio-make-callback :once 't))
+         (proc-buff (get-buffer-create (format "npm-manager-proc %s" command-string)
+                                       't)))
+    (prog1
+        promise
+      (with-current-buffer proc-buff
+        (rename-uniquely))
+      (make-process
+       :name "npm-manager-proc"
+       :buffer proc-buff
+       :command (s-split " " command-string)
+       :noquery 't
+       :sentinel (lambda (proc string)
+                   (cond
+                    ((equal string "run\n") nil)
+                    ((equal string "finished\n")
+                     (with-current-buffer (process-buffer proc)
+                       (beginning-of-buffer)
+                       (apply callback (json-parse-buffer) nil)))
+                    ;; TODO kill the process buffer after parsing
+                    ('t (message string))))))))
+
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
   (interactive)
   (unless npm-manager-package-json (npm-manager-parse-package-json))
   (unless npm-manager-audit-json (npm-manager-run-package-audit))
 
-  (let ((data nil))
-    (with-temp-buffer
-      (shell-command "npm list --json" t)
-      (beginning-of-buffer)
-      (setq data (json-parse-buffer)))
+  ;; TODO not sure why this gets a list?
+  (let ((data (car (aio-wait-for (npm-manager--capture-command "npm list --json")))))
     ;; dependencies
     ;; map over keys- key is package name key.version to print
     (message (gethash "name" data))

@@ -1,5 +1,21 @@
 ;;; npm-manager.el --- Emacs list and manage npm installation   -*- lexical-binding: t -*-
 
+;; Copyright (C) 2024 Josh Bax
+
+;; Author: Josh Bax
+
+;; Keywords: languages
+;; URL: https://github.com/joshbax189/npm-manager-el
+
+;; TODO which versions?
+;; Package-Requires: (s aio dash json tablist transient)
+
+;; This file is not part of GNU Emacs.
+
+;;; Commentary:
+
+;; Display and interact with the contents of package.json.
+
 ;;; Code:
 
 (require 's)

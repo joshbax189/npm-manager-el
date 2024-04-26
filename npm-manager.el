@@ -32,7 +32,6 @@
   "Store parsed package.json in buffer-local variable."
   (setq npm-manager-package-json (json-read-file "./package.json")))
 
-;; TODO this is a hash table, should match package-json
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)
 
@@ -40,9 +39,10 @@
   "Store output of npm audit in buffer-local variable."
   (let ((tmp nil))
   (with-temp-buffer
+    ;; TODO errors when there is no lockfile
     (shell-command "npm audit --json" t)
     (beginning-of-buffer)
-    (setq tmp (json-parse-buffer)))
+    (setq tmp (json-parse-buffer :object-type 'alist)))
   (setq npm-manager-audit-json tmp)))
 
 (defun npm-manager--capture-command (command-string)
@@ -65,7 +65,7 @@
                     ((equal string "finished\n")
                      (with-current-buffer (process-buffer proc)
                        (beginning-of-buffer)
-                       (apply callback (json-parse-buffer) nil)))
+                       (apply callback (json-parse-buffer :object-type 'alist) nil)))
                     ;; TODO kill the process buffer after parsing
                     ('t (message string))))))))
 
@@ -79,19 +79,19 @@
   (let ((data (car (aio-wait-for (npm-manager--capture-command "npm list --json")))))
     ;; dependencies
     ;; map over keys- key is package name key.version to print
-    (message (gethash "name" data))
-    (message (gethash "version" data))
-    (let* ((deps (gethash "dependencies" data))
+    (message (alist-get 'name data))
+    (message (alist-get 'version data))
+    (let* ((deps (alist-get 'dependencies data))
            (dep-keys (--filter
-                      (not (gethash "extraneous" (gethash it deps)))
-                      (hash-table-keys deps))))
+                      (not (map-nested-elt deps `(,it extraneous)))
+                      (map-keys deps))))
       (--map (list it
-                   (apply 'vector `(,it ,@(npm-manager-read-dep-type it) ,(gethash "version" (gethash it deps)) ,(npm-manager-read-vuln it))))
+                   (apply 'vector `(,(symbol-name it) ,@(npm-manager-read-dep-type it) ,(map-nested-elt deps (list it 'version)) ,(npm-manager-read-vuln it))))
              dep-keys))))
 
 (defun npm-manager-read-dep-type (package-name)
   "docstring"
-  (let ((package-sym (intern package-name)))
+  (let ((package-sym package-name))
     ;; TODO switch to case
   (if-let ((package-req (alist-get package-sym (alist-get 'dependencies npm-manager-package-json))))
       `("req" ,package-req)
@@ -102,11 +102,7 @@
 
 (defun npm-manager-read-vuln (package-name)
   "docstring"
-  (let ((vulns (gethash "vulnerabilities" npm-manager-audit-json)))
-    (if-let ((package-vuln (gethash package-name vulns)))
-        (gethash "severity" package-vuln)
-      ""
-  )))
+  (map-nested-elt npm-manager-audit-json `(vulnerabilities ,package-name severity) ""))
 
 ;;;###autoload
 (defun npm-manager ()

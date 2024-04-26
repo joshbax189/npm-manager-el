@@ -30,7 +30,10 @@
 
 (defun npm-manager-parse-package-json ()
   "Store parsed package.json in buffer-local variable."
-  (setq npm-manager-package-json (json-read-file "./package.json")))
+  (let ((prefix (with-temp-buffer
+                  (shell-command "npm prefix" 't)
+                  (string-trim (buffer-string)))))
+   (setq npm-manager-package-json (json-read-file (concat prefix "/package.json")))))
 
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)
@@ -40,7 +43,7 @@
   (let ((tmp nil))
   (with-temp-buffer
     ;; TODO errors when there is no lockfile
-    (shell-command "npm audit --json" t)
+    (shell-command "npm audit --json" 't)
     (beginning-of-buffer)
     (setq tmp (json-parse-buffer :object-type 'alist)))
   (setq npm-manager-audit-json tmp)))

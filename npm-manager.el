@@ -90,15 +90,20 @@
              dep-keys))))
 
 (defun npm-manager-read-dep-type (package-name)
-  "docstring"
-  (let ((package-sym package-name))
-    ;; TODO switch to case
-  (if-let ((package-req (alist-get package-sym (alist-get 'dependencies npm-manager-package-json))))
-      `("req" ,package-req)
-    (if-let ((package-req (alist-get package-sym (alist-get 'devDependencies npm-manager-package-json))))
-        `("dev" ,package-req)
-      ;; TODO add peer and optional types
-      '("" "")))))
+  "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME."
+(let ((core-deps     (map-nested-elt npm-manager-package-json `(dependencies ,package-name)))
+      (dev-deps      (map-nested-elt npm-manager-package-json `(devDependencies ,package-name)))
+      (peer-deps     (map-nested-elt npm-manager-package-json `(peerDependencies ,package-name)))
+      (optional-deps (map-nested-elt npm-manager-package-json `(optionalDependencies ,package-name)))
+      (bundle-deps   (map-nested-elt npm-manager-package-json `(bundleDependencies ,package-name))))
+
+  (or
+   (and core-deps     `("req" ,core-deps))
+   (and dev-deps      `("dev" ,dev-deps))
+   (and peer-deps     `("peer" ,peer-deps))
+   (and optional-deps `("opt" ,optional-deps))
+   (and bundle-deps   `("bundle" ,bundle-deps))
+   '("" ""))))
 
 (defun npm-manager-read-vuln (package-name)
   "docstring"

@@ -24,6 +24,7 @@
 (require 'json)
 (require 'tablist)
 (require 'transient)
+(require 'ansi-color)
 
 (defvar npm-manager-package-json nil "Parsed package json.")
 (make-variable-buffer-local 'npm-manager-package-json)
@@ -48,6 +49,15 @@
     (setq tmp (json-parse-buffer :object-type 'alist)))
   (setq npm-manager-audit-json tmp)))
 
+(defun npm-manager-info ()
+  "Run `npm info` on the package at point."
+  (interactive)
+  (let* ((entry (tabulated-list-get-entry))
+         (name (seq-elt entry 0))
+         (ver (seq-elt entry 2)))
+    ;; (async-shell-command (format "npm info %s@%s" name ver) "*NPM output*")
+    (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
+
 (defun npm-manager--capture-command (command-string)
   "Run npm command COMMAND-STRING and parse output as JSON, returning it as an aio-promise."
   (-let (((callback . promise) (aio-make-callback :once 't))
@@ -71,6 +81,39 @@
                        (apply callback (json-parse-buffer :object-type 'alist) nil)))
                     ;; TODO kill the process buffer after parsing
                     ('t (message string))))))))
+
+(defun npm-manager--display-command (command flags args)
+  "Run a command and display output in a new buffer.
+
+Command will be like 'npm COMMAND FLAGS ARGS' where:
+  COMMAND is a string
+  FLAGS is a string, and
+  ARGS is a string"
+  (when (get-buffer "*NPM output*") (kill-buffer "*NPM output*")) ;; TODO do we need this?
+  (make-process
+   :name "npm-manager-proc"
+   :buffer (get-buffer-create "*NPM output*")
+   :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
+   :noquery 't
+   :filter (lambda (proc string)
+             (when (buffer-live-p (process-buffer proc))
+               (with-current-buffer (process-buffer proc)
+                 (let ((moving (= (point) (process-mark proc))))
+                   (save-excursion
+                     ;; Insert the text, advancing the process marker.
+                     (goto-char (process-mark proc))
+                     (insert (ansi-color-apply string))
+                     (set-marker (process-mark proc) (point)))
+                   (if moving (goto-char (process-mark proc)))))))
+   :sentinel (lambda (proc string)
+               (cond
+                ((equal string "run\n") nil)
+                ((equal string "finished\n")
+                 (with-current-buffer (process-buffer proc)
+                   (shell-mode)
+                   (view-mode)
+                   (pop-to-buffer (current-buffer))))
+                ('t (message string))))))
 
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."

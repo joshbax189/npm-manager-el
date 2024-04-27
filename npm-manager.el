@@ -8,7 +8,7 @@
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
 ;; TODO which versions?
-;; Package-Requires: (s aio dash json tablist transient)
+;; Package-Requires: (aio dash json tablist transient)
 
 ;; This file is not part of GNU Emacs.
 
@@ -18,7 +18,6 @@
 
 ;;; Code:
 
-(require 's)
 (require 'aio)
 (require 'dash)
 (require 'json)
@@ -70,7 +69,7 @@
       (make-process
        :name "npm-manager-proc"
        :buffer proc-buff
-       :command (s-split " " command-string)
+       :command (string-split command-string)
        :noquery 't
        :sentinel (lambda (proc string)
                    (cond

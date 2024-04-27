@@ -87,32 +87,39 @@
 Command will be like 'npm COMMAND FLAGS ARGS' where:
   COMMAND is a string
   FLAGS is a string, and
-  ARGS is a string"
+  ARGS is a string.
+
+Returns an aio-promise that is fulfilled with the output buffer."
   (when (get-buffer "*NPM output*") (kill-buffer "*NPM output*")) ;; TODO do we need this?
-  (make-process
-   :name "npm-manager-proc"
-   :buffer (get-buffer-create "*NPM output*")
-   :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
-   :noquery 't
-   :filter (lambda (proc string)
-             (when (buffer-live-p (process-buffer proc))
-               (with-current-buffer (process-buffer proc)
-                 (let ((moving (= (point) (process-mark proc))))
-                   (save-excursion
-                     ;; Insert the text, advancing the process marker.
-                     (goto-char (process-mark proc))
-                     (insert (ansi-color-apply string))
-                     (set-marker (process-mark proc) (point)))
-                   (if moving (goto-char (process-mark proc)))))))
-   :sentinel (lambda (proc string)
-               (cond
-                ((equal string "run\n") nil)
-                ((equal string "finished\n")
-                 (with-current-buffer (process-buffer proc)
-                   (shell-mode)
-                   (view-mode)
-                   (pop-to-buffer (current-buffer))))
-                ('t (message string))))))
+  (-let (((callback . promise) (aio-make-callback :once 't)))
+    (prog1
+        promise
+        (make-process
+         :name "npm-manager-proc"
+         :buffer (get-buffer-create "*NPM output*")
+         :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
+         :noquery 't
+         :filter (lambda (proc string)
+                   (when (buffer-live-p (process-buffer proc))
+                     (with-current-buffer (process-buffer proc)
+                       (let ((moving (= (point) (process-mark proc))))
+                         (save-excursion
+                           ;; Insert the text, advancing the process marker.
+                           (goto-char (process-mark proc))
+                           (insert (ansi-color-apply string))
+                           (set-marker (process-mark proc) (point)))
+                         (if moving (goto-char (process-mark proc)))))))
+         :sentinel (lambda (proc string)
+                     (cond
+                      ((equal string "run\n") nil)
+                      ((equal string "finished\n")
+                       (with-current-buffer (process-buffer proc)
+                         (shell-mode)
+                         (view-mode)
+                         (pop-to-buffer (current-buffer))
+                         (apply callback (current-buffer) nil)))
+                      ;; TODO handle errors, ensure promise works correctly
+                      ('t (message string))))))))
 
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
@@ -153,6 +160,15 @@ Command will be like 'npm COMMAND FLAGS ARGS' where:
 (defun npm-manager-read-vuln (package-name)
   "docstring"
   (map-nested-elt npm-manager-audit-json `(vulnerabilities ,package-name severity) ""))
+
+(aio-defun npm-manager-uninstall ()
+  "Uninstall package at point."
+  (interactive)
+  (let* ((entry (tabulated-list-get-entry))
+         (name (seq-elt entry 0))
+         (npm-buffer (current-buffer)))
+    (aio-await (npm-manager--display-command "uninstall" "" name))
+    (with-current-buffer npm-buffer (revert-buffer))))
 
 ;;;###autoload
 (defun npm-manager ()

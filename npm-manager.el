@@ -69,6 +69,12 @@ Must be called with the npm-manager buffer as current."
                   (string-trim (buffer-string)))))
     (concat prefix "/package.json")))
 
+(defun npm-manager--get-node-modules-path ()
+  "Return the path to node_modules active for the current directory."
+  (with-temp-buffer
+    (shell-command "npm root" 't)
+    (string-trim (buffer-string))))
+
 (defun npm-manager-parse-package-json ()
   "Store parsed package.json in buffer-local variable."
   (setq npm-manager-package-json (json-read-file (npm-manager--get-package-json-path))))
@@ -163,7 +169,11 @@ Returns an aio-promise that is fulfilled with the output buffer."
   "Refresh the contents of NPM manager display."
   (interactive)
   (unless npm-manager-package-json (npm-manager-parse-package-json))
+  ;; TODO this one takes a while
   (unless npm-manager-audit-json (npm-manager-run-package-audit))
+
+  (unless (file-exists-p (npm-manager--get-node-modules-path))
+    (user-error "No node packages installed for this package"))
 
   ;; TODO not sure why this gets a list?
   (let ((data (car (aio-wait-for (npm-manager--capture-command "npm list --json")))))

@@ -104,15 +104,14 @@ Must be called with the npm-manager buffer as current."
 (defun npm-manager--capture-command (command-string)
   "Run npm command COMMAND-STRING and parse output as JSON, returning it as an aio-promise."
   (-let (((callback . promise) (aio-make-callback :once 't))
-         (proc-buff (get-buffer-create (format "npm-manager-proc %s" command-string)
-                                       't)))
+         (proc-buff (get-buffer-create (format "npm-manager-proc %s" command-string))))
     (prog1
         promise
       (with-current-buffer proc-buff
-        (rename-uniquely))
+        (erase-buffer))
       (make-process
        :name "npm-manager-proc"
-       :buffer proc-buff
+       :buffer (format "npm-manager-proc %s" command-string)
        :command (string-split command-string)
        :noquery 't
        :sentinel (lambda (proc string)
@@ -121,8 +120,21 @@ Must be called with the npm-manager buffer as current."
                     ((equal string "finished\n")
                      (with-current-buffer (process-buffer proc)
                        (beginning-of-buffer)
-                       (apply callback (json-parse-buffer :object-type 'alist) nil)))
+                       ;; note json-parse-buffer does not seem to handle trailing whitespace
+                       ;; json-parse-string seems more robust
+
+                       (apply callback (json-parse-string (buffer-string) :object-type 'alist) nil)))
                     ;; TODO kill the process buffer after parsing
+                    ((string-prefix-p "exited abnormally" string)
+                     ;; some npm commands give non-zero exit code AND produce the output we want!
+                     (condition-case nil
+                         (with-current-buffer (process-buffer proc)
+                           (beginning-of-buffer)
+                           (when-let ((buffer-json (json-parse-string (buffer-string) :object-type 'alist)))
+                             (apply callback buffer-json nil)))
+                       (error
+                        (message "npm process %s" string)
+                        (message "see buffer %s" (process-buffer proc)))))
                     ('t (message string))))))))
 
 (defun npm-manager--display-command (command flags args)

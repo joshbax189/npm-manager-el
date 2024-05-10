@@ -41,8 +41,8 @@ Filenotify callback responding to change EVENT."
 
     (when (equal 'changed event-type)
         (message "package.json change detected")
-     ;; TODO probably want to refresh manager view, but not working
-        ;; TODO probably also want to refresh audit data, but that is longer running
+        ;; TODO probably want to refresh manager view, but not working
+        ;; TODO probably also want to refresh audit data?
         (npm-manager-parse-package-json))))
 
 (defun npm-manager--set-package-watch (manager-buffer)
@@ -82,15 +82,15 @@ Must be called with the npm-manager buffer as current."
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)
 
-(defun npm-manager-run-package-audit ()
-  "Store output of npm audit in buffer-local variable."
-  (let ((tmp nil))
-  (with-temp-buffer
-    ;; TODO errors when there is no lockfile
-    (shell-command "npm audit --json" 't)
-    (beginning-of-buffer)
-    (setq tmp (json-parse-buffer :object-type 'alist)))
-  (setq npm-manager-audit-json tmp)))
+(aio-defun npm-manager-run-package-audit (manager-buffer)
+  "Store output of npm audit in buffer-local variable of MANAGER-BUFFER."
+  (let ((audit-json))
+    ;; aio-await macro doesn't like to be in the let?
+    (setq audit-json (car (aio-await (npm-manager--capture-command "npm audit --json"))))
+    (with-current-buffer manager-buffer
+      (setq npm-manager-audit-json audit-json)
+      (message "completed package audit")
+      (tablist-revert))))
 
 (defun npm-manager-info ()
   "Run `npm info` on the package at point."
@@ -181,8 +181,8 @@ Returns an aio-promise that is fulfilled with the output buffer."
   "Refresh the contents of NPM manager display."
   (interactive)
   (unless npm-manager-package-json (npm-manager-parse-package-json))
-  ;; TODO this one takes a while
-  (unless npm-manager-audit-json (npm-manager-run-package-audit))
+  ;; trigger async call but don't block
+  (unless npm-manager-audit-json (npm-manager-run-package-audit (current-buffer)))
 
   (unless (file-exists-p (npm-manager--get-node-modules-path))
     (user-error "No node packages installed for this package"))

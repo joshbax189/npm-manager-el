@@ -24,16 +24,54 @@
 (require 'tablist)
 (require 'transient)
 (require 'ansi-color)
+(require 'filenotify)
 
 (defvar npm-manager-package-json nil "Parsed package json.")
 (make-variable-buffer-local 'npm-manager-package-json)
 
-(defun npm-manager-parse-package-json ()
-  "Store parsed package.json in buffer-local variable."
+(defvar npm-manager-package-json-watcher nil "Descriptor for package.json watcher.")
+(make-variable-buffer-local 'npm-manager-package-json-watcher)
+
+(defun npm-manager--change-handler (event)
+  "Handle change in package.json.
+
+Filenotify callback responding to change EVENT."
+  (let ((event-type (nth 1 event))
+        (file (nth 2 event)))
+
+    (when (equal 'changed event-type)
+        (message "package.json change detected")
+     ;; TODO probably want to refresh manager view, but not working
+        ;; TODO probably also want to refresh audit data, but that is longer running
+        (npm-manager-parse-package-json))))
+
+(defun npm-manager--set-package-watch (manager-buffer)
+  "Reload MANAGER-BUFFER's package.json file on file change."
+  (with-current-buffer manager-buffer
+    (unless npm-manager-package-json-watcher
+      (let ((package-json (npm-manager--get-package-json-path))
+            (cb (lambda (event) (with-current-buffer manager-buffer (npm-manager--change-handler event)))))
+        (setq npm-manager-package-json-watcher
+              (file-notify-add-watch package-json '(change) cb))))))
+
+(defun npm-manager--remove-package-watch ()
+  "Remove file watcher from package.json.
+
+Must be called with the npm-manager buffer as current."
+  (when npm-manager-package-json-watcher
+    (message "removed package.json watcher")
+    (file-notify-rm-watch npm-manager-package-json-watcher)))
+
+(defun npm-manager--get-package-json-path ()
+  "Return the path to package.json active for the current directory."
   (let ((prefix (with-temp-buffer
                   (shell-command "npm prefix" 't)
                   (string-trim (buffer-string)))))
-   (setq npm-manager-package-json (json-read-file (concat prefix "/package.json")))))
+    (concat prefix "/package.json")))
+
+(defun npm-manager-parse-package-json ()
+  "Store parsed package.json in buffer-local variable."
+  (setq npm-manager-package-json (json-read-file (npm-manager--get-package-json-path))))
 
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)
@@ -177,7 +215,13 @@ Returns an aio-promise that is fulfilled with the output buffer."
   (pop-to-buffer (format "NPM %s" default-directory))
   (npm-manager-parse-package-json)
   (npm-manager-mode)
+  (npm-manager--set-package-watch (current-buffer))
+  (add-hook 'kill-buffer-hook #'npm-manager--remove-package-watch)
   (tablist-revert))
+
+(defun npm-manager-unload-function ()
+  "Cleanup mode hooks."
+  (remove-hook 'kill-buffer-hook #'npm-manager--remove-package-watch))
 
 (define-derived-mode npm-manager-mode tabulated-list-mode "NPM Manager"
   "NPM manager major mode."

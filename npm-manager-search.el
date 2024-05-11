@@ -1,0 +1,109 @@
+;;; npm-manager-search.el --- Emacs search npm package registry   -*- lexical-binding: t -*-
+
+;; Copyright (C) 2024 Josh Bax
+
+;; Author: Josh Bax
+
+;; Keywords: languages
+;; URL: https://github.com/joshbax189/npm-manager-el
+
+;; Package-Requires: (aio dash json tablist transient url)
+
+;; This file is not part of GNU Emacs.
+
+;;; Commentary:
+
+;; Search NPM registry for packages.
+
+;;; Code:
+
+(require 'aio)
+(require 'dash)
+(require 'json)
+(require 'tablist)
+(require 'transient)
+(require 'url)
+
+(defvar npm-manager-search-string ""
+  "The currently active search.")
+(make-variable-buffer-local 'npm-manager-search-string)
+
+(defvar npm-manager-search-registry-host "https://registry.npmjs.org"
+  "Which NPM registry server to use.")
+
+(defun npm-manager-search-fetch (search-string)
+  "Call search API."
+  (-let [(callback . promise) (aio-make-callback :once 't)]
+    (url-retrieve (format "%s/-/v1/search?text=%s" npm-manager-search-registry-host search-string)
+                  (lambda (&rest _1)
+                    (while (looking-at "^.") (delete-line))
+                    (apply callback (json-parse-buffer :object-type 'alist) nil)))
+    promise))
+
+(defun npm-manager-search-refresh ()
+  "Refresh the contents of NPM search list display."
+  (interactive)
+  ;; see https://www.npmjs.com/package/libnpmsearch#api
+  ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
+  (let* ((command (format "npm search --json %s" npm-manager-search-string))
+         (data (car (aio-wait-for (npm-manager--capture-command command)))))
+    (--map (list it
+                 (let-alist it
+                   (vector .name
+                           (or .description "")
+                           (if .author
+                               (alist-get 'name .author)
+                             "") ;; TODO
+                           (car (string-split .date "T"))
+                           .version
+                           (string-join .keywords ", ")
+                           )))
+           data)))
+
+;;;###autoload
+(transient-define-prefix npm-manager-search ()
+  "Search npm packages."
+  [("a" "author" "author=")
+   ("m" "maintainer" "maintainer=")
+   ("@" "scope" "scope=" :prompt "Package scope: ")
+   ("k" "keywords" "keywords=" :prompt "Package keywords: ")
+   ("u" "Exclude packages whose version is < 1.0.0" "not:unstable")
+   ("i" "Exclude packages that are insecure or have vulnerable dependencies" "not:insecure")
+   ("U" "Show/filter packages whose version is < 1.0.0)" "is:unstable")
+   ("I" "Show/filter packages that are insecure or have vulnerable dependencies" "is:insecure" )
+   ("x" "Don't boost exact matches" "boost-exact:false")
+   ]
+  [("s" "Enter search text" npm-manager-search--search-suffix)]
+  )
+
+(defun npm-manager-search--search-suffix (search-input)
+  (interactive "M")
+  (let* ((data (transient-args transient-current-command))
+         (clean-data (--map (string-replace "=" ":" it) data))
+         (full-search (string-join (cons search-input clean-data) " ")))
+    (npm-manager-search-text full-search)))
+
+(defun npm-manager-search-text (search-string)
+  "Search for an NPM package using SEARCH-STRING."
+  (interactive "M")
+  (pop-to-buffer (format "NPM search: %s" search-string))
+  (npm-manager-search-mode)
+  (setq npm-manager-search-string search-string)
+  (tablist-revert))
+
+(define-derived-mode npm-manager-search-mode tabulated-list-mode "NPM Search"
+  "NPM search result display major mode."
+  (setq tabulated-list-format [("Name" 24 t)
+                               ("Description" 48 t)
+                               ("Author" 18 t)
+                               ("Date" 12 t)
+                               ("Version" 12)
+                               ("Keywords" 32 nil)]
+        tabulated-list-padding 2
+        tabulated-list-entries #'npm-manager-search-refresh)
+  (tabulated-list-init-header)
+  (tablist-minor-mode))
+
+(provide 'npm-manager-search)
+
+;;; npm-manager-search.el ends here

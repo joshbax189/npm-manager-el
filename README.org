@@ -1,0 +1,25 @@
+* npm-manager
+
+Provides a quick overview of requested packages (in package.json), how they are satisfied (in package-lock.json)
+and which packages have security warnings.
+
+Inspired by the excellent [[https://github.com/silex/docker.el][Docker.el]]
+
+** Install
+
+No specific configuration. Simply install from this repo:
+
+#+begin_src emacs-lisp
+(use-package npm-manager
+  :straight (npm-manager :fetcher git :url "https://github.com/joshbax189/npm-manager-el"))
+#+end_src
+
+** Usage and Features
+
+From anywhere in a node project, run =M-x npm-manager=
+
+This will list packages from the project's package.json sorted by type, with installed version and any warnings raised by =npm audit=
+
+Other commands
+- =M-x npm-manager-search= like =npm search= with more info and features exposed
+- =M-x npm-manager-info= run =npm info= on the listed package

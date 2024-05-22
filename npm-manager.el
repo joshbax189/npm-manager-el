@@ -218,8 +218,13 @@ Returns an aio-promise that is fulfilled with the output buffer."
    '("" ""))))
 
 (defun npm-manager-read-vuln (package-name)
-  "docstring"
-  (map-nested-elt npm-manager-audit-json `(vulnerabilities ,package-name severity) ""))
+  "Get vulnerability reports for PACKAGE-NAME symbol.
+Returns a string high/medium/low or empty."
+  (let ((severity (map-nested-elt npm-manager-audit-json `(vulnerabilities ,package-name severity) "")))
+    (cond
+     ((equal severity "high") (propertize severity 'font-lock-face 'error))
+     ((equal severity "medium") (propertize severity 'font-lock-face 'warning))
+     ('t severity))))
 
 (aio-defun npm-manager-uninstall ()
   "Uninstall package at point."

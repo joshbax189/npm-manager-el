@@ -177,6 +177,26 @@ Returns an aio-promise that is fulfilled with the output buffer."
                       ;; TODO handle errors, ensure promise works correctly
                       ('t (message string))))))))
 
+(defun npm-manager--make-entry (dependencies package-name)
+  "Create tablist entry given PACKAGE-NAME symbol.
+
+DEPENDENCIES is the output of npm list --json."
+  (-let* (((dependency requested-version) (npm-manager-read-dep-type package-name))
+          (name (symbol-name package-name))
+          (propertized-name (if (equal dependency "req")
+                                (propertize name 'font-lock-face 'bold)
+                              name))
+          (installed-version (map-nested-elt dependencies (list package-name 'version)))
+          (vulnerabilities (npm-manager-read-vuln package-name)))
+
+   (apply #'vector
+          (list
+           propertized-name
+           dependency
+           requested-version
+           installed-version
+           vulnerabilities))))
+
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
   (interactive)
@@ -197,12 +217,12 @@ Returns an aio-promise that is fulfilled with the output buffer."
            (dep-keys (--filter
                       (not (map-nested-elt deps `(,it extraneous)))
                       (map-keys deps))))
-      (--map (list it
-                   (apply 'vector `(,(symbol-name it) ,@(npm-manager-read-dep-type it) ,(map-nested-elt deps (list it 'version)) ,(npm-manager-read-vuln it))))
+      (--map (list it (npm-manager--make-entry deps it))
              dep-keys))))
 
 (defun npm-manager-read-dep-type (package-name)
-  "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME."
+  "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.
+Returns a list: (type requested-version)."
 (let ((core-deps     (map-nested-elt npm-manager-package-json `(dependencies ,package-name)))
       (dev-deps      (map-nested-elt npm-manager-package-json `(devDependencies ,package-name)))
       (peer-deps     (map-nested-elt npm-manager-package-json `(peerDependencies ,package-name)))

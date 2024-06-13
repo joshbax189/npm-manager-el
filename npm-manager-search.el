@@ -40,24 +40,32 @@
                     (apply callback (json-parse-buffer :object-type 'alist) nil)))
     promise))
 
+(defun npm-manager-search--format-score (score-num)
+  "Format SCORE-NUM for display in tablist."
+  (seq-take (number-to-string score-num) 4))
+
 (defun npm-manager-search-refresh ()
   "Refresh the contents of NPM search list display."
   (interactive)
   ;; see https://www.npmjs.com/package/libnpmsearch#api
   ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
-  (let* ((command (format "npm search --json %s" npm-manager-search-string))
-         (data (car (aio-wait-for (npm-manager--capture-command command)))))
+  (let* ((result (car (aio-wait-for (npm-manager-search-fetch npm-manager-search-string))))
+         (data (map-elt result 'objects)))
     (--map (list it
-                 (let-alist it
-                   (vector .name
-                           (or .description "")
-                           (if .author
-                               (alist-get 'name .author)
-                             "") ;; TODO
-                           (car (string-split .date "T"))
-                           .version
-                           (string-join .keywords ", ")
-                           )))
+                 (let ((package (map-elt it 'package))
+                       (score (map-elt it 'score)))
+                   (let-alist package
+                     (vector .name
+                             (or .description "")
+                             (if .author
+                                 (map-elt .author 'name)
+                               "")
+                             (car (string-split .date "T"))
+                             .version
+                             (npm-manager-search--format-score (map-nested-elt score '(detail quality)))
+                             (npm-manager-search--format-score (map-nested-elt score '(detail popularity)))
+                             (npm-manager-search--format-score (map-nested-elt score '(detail maintenance)))
+                             ))))
            data)))
 
 ;;;###autoload
@@ -98,7 +106,9 @@
                                ("Author" 18 t)
                                ("Date" 12 t)
                                ("Version" 12)
-                               ("Keywords" 32 nil)]
+                               ("Qual" 5)
+                               ("Pop" 5)
+                               ("Maint" 5)]
         tabulated-list-padding 2
         tabulated-list-entries #'npm-manager-search-refresh)
   (tabulated-list-init-header)

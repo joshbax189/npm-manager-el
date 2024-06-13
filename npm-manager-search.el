@@ -68,6 +68,14 @@
                              ))))
            data)))
 
+(defun npm-manager-search-info ()
+  "Run `npm info` on the package at point."
+  (interactive)
+  (let* ((entry (tabulated-list-get-entry))
+         (name (seq-elt entry 0))
+         (ver (seq-elt entry 4)))
+    (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
+
 ;;;###autoload
 (transient-define-prefix npm-manager-search ()
   "Search npm packages."

@@ -134,7 +134,8 @@ Must be called with the npm-manager buffer as current."
                              (apply callback buffer-json nil)))
                        (error
                         (message "npm process %s" string)
-                        (message "see buffer %s" (process-buffer proc)))))
+                        (message "see buffer %s" (process-buffer proc))
+                        (aio-cancel promise "Node exited"))))
                     ('t (message string))))))))
 
 (defun npm-manager--display-command (command flags args)

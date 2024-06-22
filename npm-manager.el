@@ -84,13 +84,16 @@ Must be called with the npm-manager buffer as current."
 
 (aio-defun npm-manager-run-package-audit (manager-buffer)
   "Store output of npm audit in buffer-local variable of MANAGER-BUFFER."
-  (let ((audit-json))
-    ;; aio-await macro doesn't like to be in the let?
-    (setq audit-json (car (aio-await (npm-manager--capture-command "npm audit --json"))))
-    (with-current-buffer manager-buffer
-      (setq npm-manager-audit-json audit-json)
-      (message "completed package audit")
-      (tablist-revert))))
+  (if (not (file-exists-p (npm-manager--get-node-modules-path)))
+      (message "Skipping npm audit")
+    ;; else
+    (let ((audit-json))
+      ;; aio-await macro doesn't like to be in the let?
+      (setq audit-json (car (aio-await (npm-manager--capture-command "npm audit --json"))))
+      (with-current-buffer manager-buffer
+        (setq npm-manager-audit-json audit-json)
+        (message "completed package audit")
+        (tablist-revert)))))
 
 (defun npm-manager-info ()
   "Run `npm info` on the package at point."
@@ -195,7 +198,7 @@ DEPENDENCIES is the output of npm list --json."
            propertized-name
            dependency
            requested-version
-           installed-version
+           (or installed-version "-")
            vulnerabilities))))
 
 (defun npm-manager-refresh ()
@@ -205,38 +208,54 @@ DEPENDENCIES is the output of npm list --json."
   ;; trigger async call but don't block
   (unless npm-manager-audit-json (npm-manager-run-package-audit (current-buffer)))
 
-  (unless (file-exists-p (npm-manager--get-node-modules-path))
-    (user-error "No node packages installed for this package"))
+  (message (map-elt npm-manager-package-json 'name))
+  (message (map-elt npm-manager-package-json 'version))
+  (let* ((installed-packages (npm-manager-list-installed-versions))
+         (package-names (if installed-packages
+                            (map-keys installed-packages)
+                          (map-keys (npm-manager-read-packages)))))
+    (--map (list it (npm-manager--make-entry installed-packages it))
+           package-names)))
 
-  ;; TODO not sure why this gets a list?
-  (let ((data (car (aio-wait-for (npm-manager--capture-command "npm list --json")))))
-    ;; dependencies
-    ;; map over keys- key is package name key.version to print
-    (message (alist-get 'name data))
-    (message (alist-get 'version data))
-    (let* ((deps (alist-get 'dependencies data))
-           (dep-keys (--filter
-                      (not (map-nested-elt deps `(,it extraneous)))
-                      (map-keys deps))))
-      (--map (list it (npm-manager--make-entry deps it))
-             dep-keys))))
+(defun npm-manager-list-installed-versions ()
+  "Return the dependencies prop of npm list.  This is a list of installed dependency versions."
+  (condition-case nil
+      (let* ((output (aio-wait-for (npm-manager--capture-command "npm list --json")))
+             (all-dependencies (map-elt (car output) 'dependencies))
+             ;; remove dependencies marked "extraneous"
+             (filtered-dependencies (--filter
+                                     (not (map-nested-elt all-dependencies `(,it extraneous)))
+                                     all-dependencies)))
+        filtered-dependencies)
+    (error '())))
 
 (defun npm-manager-read-dep-type (package-name)
   "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.
 Returns a list: (type requested-version)."
-(let ((core-deps     (map-nested-elt npm-manager-package-json `(dependencies ,package-name)))
-      (dev-deps      (map-nested-elt npm-manager-package-json `(devDependencies ,package-name)))
-      (peer-deps     (map-nested-elt npm-manager-package-json `(peerDependencies ,package-name)))
-      (optional-deps (map-nested-elt npm-manager-package-json `(optionalDependencies ,package-name)))
-      (bundle-deps   (map-nested-elt npm-manager-package-json `(bundleDependencies ,package-name))))
+  (let ((core-deps     (map-nested-elt npm-manager-package-json `(dependencies ,package-name)))
+        (dev-deps      (map-nested-elt npm-manager-package-json `(devDependencies ,package-name)))
+        (peer-deps     (map-nested-elt npm-manager-package-json `(peerDependencies ,package-name)))
+        (optional-deps (map-nested-elt npm-manager-package-json `(optionalDependencies ,package-name)))
+        (bundle-deps   (map-nested-elt npm-manager-package-json `(bundleDependencies ,package-name))))
 
-  (or
-   (and core-deps     `("req" ,core-deps))
-   (and dev-deps      `("dev" ,dev-deps))
-   (and peer-deps     `("peer" ,peer-deps))
-   (and optional-deps `("opt" ,optional-deps))
-   (and bundle-deps   `("bundle" ,bundle-deps))
-   '("" ""))))
+    (or
+     (and core-deps     `("req" ,core-deps))
+     (and dev-deps      `("dev" ,dev-deps))
+     (and peer-deps     `("peer" ,peer-deps))
+     (and optional-deps `("opt" ,optional-deps))
+     (and bundle-deps   `("bundle" ,bundle-deps))
+     '("" ""))))
+
+(defun npm-manager-read-packages ()
+  "Use to directly list packages from package.json as a backup to npm-manager-list-installed-versions."
+  (unless npm-manager-package-json (error "Missing package.json"))
+
+  (append
+   (map-elt npm-manager-package-json 'dependencies) ;; list of cons cells (package-symbol . "version")
+   (map-elt npm-manager-package-json 'devDependencies)
+   (map-elt npm-manager-package-json 'peerDependencies)
+   (map-elt npm-manager-package-json 'optionalDependencies)
+   (map-elt npm-manager-package-json 'bundleDependencies)))
 
 (defun npm-manager-read-vuln (package-name)
   "Get vulnerability reports for PACKAGE-NAME symbol.

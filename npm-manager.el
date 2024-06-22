@@ -278,6 +278,17 @@ Returns a string high/medium/low or empty."
     (aio-await (npm-manager--display-command "uninstall" "" name))
     (with-current-buffer npm-buffer (revert-buffer))))
 
+(aio-defun npm-manager-install-types-package (base-package-name)
+  "Install the types package for BASE-PACKAGE-NAME."
+  (interactive (completing-read
+                "@types/"
+                (list (or (string-remove-prefix "@types/" (seq-elt (tabulated-list-get-entry) 0))
+                          ""))))
+  (let ((npm-buffer (current-buffer)))
+    (aio-await (npm-manager--display-command "i" "-D" (format "@types/%s" base-package-name) default-directory))
+    (with-current-buffer npm-buffer
+      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+
 ;;;###autoload
 (defun npm-manager ()
   "Start npm manager interface in the directory."

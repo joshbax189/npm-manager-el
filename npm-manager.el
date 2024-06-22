@@ -141,7 +141,7 @@ Must be called with the npm-manager buffer as current."
                         (aio-cancel promise "Node exited"))))
                     ('t (message string))))))))
 
-(defun npm-manager--display-command (command flags args)
+(defun npm-manager--display-command (command flags args &optional dir)
   "Run a command and display output in a new buffer.
 
 Command will be like 'npm COMMAND FLAGS ARGS' where:
@@ -150,36 +150,39 @@ Command will be like 'npm COMMAND FLAGS ARGS' where:
   ARGS is a string.
 
 Returns an aio-promise that is fulfilled with the output buffer."
-  (when (get-buffer "*NPM output*") (kill-buffer "*NPM output*")) ;; TODO do we need this?
-  (-let (((callback . promise) (aio-make-callback :once 't)))
+  (-let (((callback . promise) (aio-make-callback :once 't))
+         (proc-buffer (get-buffer-create "*NPM output*")))
     (prog1
         promise
-        (make-process
-         :name "npm-manager-proc"
-         :buffer (get-buffer-create "*NPM output*")
-         :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
-         :noquery 't
-         :filter (lambda (proc string)
-                   (when (buffer-live-p (process-buffer proc))
+      (with-current-buffer proc-buffer
+        (erase-buffer)
+        (when dir (setq default-directory dir)))
+      (make-process
+       :name "npm-manager-proc"
+       :buffer proc-buffer
+       :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
+       :noquery 't
+       :filter (lambda (proc string)
+                 (when (buffer-live-p (process-buffer proc))
+                   (with-current-buffer (process-buffer proc)
+                     (let ((moving (= (point) (process-mark proc))))
+                       (save-excursion
+                         ;; Insert the text, advancing the process marker.
+                         (goto-char (process-mark proc))
+                         (insert (ansi-color-apply string))
+                         (set-marker (process-mark proc) (point)))
+                       (if moving (goto-char (process-mark proc)))))))
+       :sentinel (lambda (proc string)
+                   (cond
+                    ((equal string "run\n") nil)
+                    ((equal string "finished\n")
                      (with-current-buffer (process-buffer proc)
-                       (let ((moving (= (point) (process-mark proc))))
-                         (save-excursion
-                           ;; Insert the text, advancing the process marker.
-                           (goto-char (process-mark proc))
-                           (insert (ansi-color-apply string))
-                           (set-marker (process-mark proc) (point)))
-                         (if moving (goto-char (process-mark proc)))))))
-         :sentinel (lambda (proc string)
-                     (cond
-                      ((equal string "run\n") nil)
-                      ((equal string "finished\n")
-                       (with-current-buffer (process-buffer proc)
-                         (shell-mode)
-                         (view-mode)
-                         (pop-to-buffer (current-buffer))
-                         (apply callback (current-buffer) nil)))
-                      ;; TODO handle errors, ensure promise works correctly
-                      ('t (message string))))))))
+                       (shell-mode)
+                       (view-mode)
+                       (pop-to-buffer (current-buffer))
+                       (apply callback (current-buffer) nil)))
+                    ;; TODO handle errors, ensure promise works correctly
+                    ('t (message string))))))))
 
 (defun npm-manager--make-entry (dependencies package-name)
   "Create tablist entry given PACKAGE-NAME symbol.

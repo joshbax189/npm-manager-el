@@ -28,8 +28,10 @@
   "The currently active search.")
 (make-variable-buffer-local 'npm-manager-search-string)
 
-(defvar npm-manager-search-registry-host "https://registry.npmjs.org"
-  "Which NPM registry server to use.")
+(defcustom npm-manager-search-registry-host "https://registry.npmjs.org"
+  "Which NPM registry server to use."
+  :type 'string
+  :group 'npm-manager)
 
 (defun npm-manager-search-fetch (search-string)
   "Call search API."

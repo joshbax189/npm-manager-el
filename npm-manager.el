@@ -26,6 +26,10 @@
 (require 'ansi-color)
 (require 'filenotify)
 
+(defgroup npm-manager nil
+  "Interface to NPM."
+  :group 'tools)
+
 (defvar npm-manager-package-json nil "Parsed package json.")
 (make-variable-buffer-local 'npm-manager-package-json)
 

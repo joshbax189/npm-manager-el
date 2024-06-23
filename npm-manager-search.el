@@ -57,9 +57,8 @@
                    (let-alist package
                      (vector .name
                              (or .description "")
-                             (if .author
-                                 (map-elt .author 'name)
-                               "")
+                             (or (map-elt .author 'name)
+                                 "")
                              (car (string-split .date "T"))
                              .version
                              (npm-manager-search--format-score (map-nested-elt score '(detail quality)))

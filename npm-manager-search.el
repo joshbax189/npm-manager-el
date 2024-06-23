@@ -28,6 +28,11 @@
   "The currently active search.")
 (make-variable-buffer-local 'npm-manager-search-string)
 
+(defcustom npm-manager-search-result-limit 100
+  "Max number of search results to return.  Max possible value is 250."
+  :type 'number
+  :group 'npm-manager)
+
 (defcustom npm-manager-search-registry-host "https://registry.npmjs.org"
   "Which NPM registry server to use."
   :type 'string
@@ -36,7 +41,7 @@
 (defun npm-manager-search-fetch (search-string)
   "Call search API."
   (-let [(callback . promise) (aio-make-callback :once 't)]
-    (url-retrieve (format "%s/-/v1/search?text=%s" npm-manager-search-registry-host search-string)
+    (url-retrieve (format "%s/-/v1/search?size=%s&text=%s" npm-manager-search-registry-host npm-manager-search-result-limit search-string)
                   (lambda (&rest _1)
                     (while (looking-at "^.") (delete-line))
                     (apply callback (json-parse-buffer :object-type 'alist) nil)))

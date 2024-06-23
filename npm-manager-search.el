@@ -75,6 +75,16 @@
          (ver (seq-elt entry 4)))
     (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
 
+(defun npm-manager-search-install (package-directory)
+  "Install package at point into PACKAGE-DIRECTORY."
+  (interactive "D")
+  (let* ((npm-buffer (current-buffer))
+         (entry (tabulated-list-get-entry))
+         (package-name (seq-elt entry 0)))
+    (aio-await (npm-manager--display-command "i" "-D" package-name package-directory))
+    (with-current-buffer npm-buffer
+      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+
 ;;;###autoload
 (transient-define-prefix npm-manager-search ()
   "Search npm packages."

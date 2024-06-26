@@ -185,7 +185,17 @@ Returns an aio-promise that is fulfilled with the output buffer."
                        (view-mode)
                        (pop-to-buffer (current-buffer))
                        (apply callback (current-buffer) nil)))
-                    ;; TODO handle errors, ensure promise works correctly
+                    ((string-prefix-p "exited abnormally" string)
+                     ;; some npm commands give non-zero exit code AND produce the output we want!
+                     (condition-case nil
+                         (with-current-buffer (process-buffer proc)
+                           (beginning-of-buffer)
+                           (when-let ((buffer-json (json-parse-string (buffer-string) :object-type 'alist)))
+                             (apply callback buffer-json nil)))
+                       (error
+                        (message "npm process %s" string)
+                        (message "see buffer %s" (process-buffer proc))
+                        (aio-cancel promise "Node exited"))))
                     ('t (message string))))))))
 
 (defun npm-manager--make-entry (dependencies package-name)
@@ -284,10 +294,10 @@ Returns a string high/medium/low or empty."
 
 (aio-defun npm-manager-install-types-package (base-package-name)
   "Install the types package for BASE-PACKAGE-NAME."
-  (interactive (completing-read
-                "@types/"
-                (list (or (string-remove-prefix "@types/" (seq-elt (tabulated-list-get-entry) 0))
-                          ""))))
+  (interactive (list (completing-read
+                 "@types/"
+                 (list (or (string-remove-prefix "@types/" (seq-elt (tabulated-list-get-entry) 0))
+                           "")))))
   (let ((npm-buffer (current-buffer)))
     (aio-await (npm-manager--display-command "i" "-D" (format "@types/%s" base-package-name) default-directory))
     (with-current-buffer npm-buffer

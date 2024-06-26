@@ -158,6 +158,8 @@ Returns an aio-promise that is fulfilled with the output buffer."
          (proc-buffer (get-buffer-create "*NPM output*")))
     (prog1
         promise
+      (setq flags (or flags ""))
+      (setq args (or args ""))
       (with-current-buffer proc-buffer
         (erase-buffer)
         (when dir (setq default-directory dir)))
@@ -300,6 +302,14 @@ Returns a string high/medium/low or empty."
                            "")))))
   (let ((npm-buffer (current-buffer)))
     (aio-await (npm-manager--display-command "i" "-D" (format "@types/%s" base-package-name) default-directory))
+    (with-current-buffer npm-buffer
+      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+
+(aio-defun npm-manager-install-packages ()
+  "Runs npm install."
+  (interactive)
+  (let ((npm-buffer (current-buffer)))
+    (aio-await (npm-manager--display-command "i" nil nil default-directory))
     (with-current-buffer npm-buffer
       (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
 

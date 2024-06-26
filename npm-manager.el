@@ -303,6 +303,19 @@ Returns a string high/medium/low or empty."
     (with-current-buffer npm-buffer
       (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
 
+(aio-defun npm-manager-change-package-type (new-type)
+  "Change dependency type of package."
+  (interactive (list (completing-read
+                      "Install as: "
+                      (list "Prod" "Dev" "Optional")
+                      )))
+  (let ((npm-buffer (current-buffer))
+        (package-name (seq-elt (tabulated-list-get-entry) 0))
+        (flag (format "-%s" (string-limit new-type 1))))
+    (aio-await (npm-manager--display-command "i" flag package-name default-directory))
+    (with-current-buffer npm-buffer
+      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+
 ;;;###autoload
 (defun npm-manager ()
   "Start npm manager interface in the directory."

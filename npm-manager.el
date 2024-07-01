@@ -40,14 +40,13 @@
   "Handle change in package.json.
 
 Filenotify callback responding to change EVENT."
-  (let ((event-type (nth 1 event))
-        (file (nth 2 event)))
+  (let ((event-type (nth 1 event)))
 
     (when (equal 'changed event-type)
         (message "package.json change detected")
-        ;; TODO probably want to refresh manager view, but not working
-        ;; TODO probably also want to refresh audit data?
-        (npm-manager-parse-package-json))))
+        (npm-manager-parse-package-json)
+        ;; This will refresh view as a side-effect
+        (npm-manager-run-package-audit (current-buffer)))))
 
 (defun npm-manager--set-package-watch (manager-buffer)
   "Reload MANAGER-BUFFER's package.json file on file change."

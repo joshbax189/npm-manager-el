@@ -109,38 +109,37 @@ Must be called with the npm-manager buffer as current."
 
 (defun npm-manager--capture-command (command-string)
   "Run npm command COMMAND-STRING and parse output as JSON, returning it as an aio-promise."
-  (-let (((callback . promise) (aio-make-callback :once 't))
-         (proc-buff (get-buffer-create (format "npm-manager-proc %s" command-string))))
+  (-let (((callback . promise) (aio-make-callback :once 't)))
     (prog1
         promise
-      (with-current-buffer proc-buff
-        (erase-buffer))
       (make-process
        :name "npm-manager-proc"
-       :buffer (format "npm-manager-proc %s" command-string)
+       :buffer (generate-new-buffer (format "npm-manager-proc %s" command-string) 't)
        :command (string-split command-string)
        :noquery 't
        :sentinel (lambda (proc string)
                    (cond
                     ((equal string "run\n") nil)
                     ((equal string "finished\n")
-                     (with-current-buffer (process-buffer proc)
-                       (beginning-of-buffer)
-                       ;; note json-parse-buffer does not seem to handle trailing whitespace
-                       ;; json-parse-string seems more robust
-
-                       (apply callback (json-parse-string (buffer-string) :object-type 'alist) nil)))
-                    ;; TODO kill the process buffer after parsing
+                     (let (buffer-json
+                           (buffer (process-buffer proc)))
+                      (with-current-buffer buffer
+                        ;; json-parse-buffer does not seem to handle trailing whitespace
+                        (setq buffer-json (json-parse-string (buffer-string)
+                                                              :object-type 'alist)))
+                      (kill-buffer buffer)
+                      (funcall callback buffer-json)))
                     ((string-prefix-p "exited abnormally" string)
                      ;; some npm commands give non-zero exit code AND produce the output we want!
                      (condition-case nil
                          (with-current-buffer (process-buffer proc)
-                           (beginning-of-buffer)
-                           (when-let ((buffer-json (json-parse-string (buffer-string) :object-type 'alist)))
-                             (apply callback buffer-json nil)))
+                           (when-let ((buffer-json (json-parse-string (buffer-string)
+                                                                      :object-type 'alist)))
+                             (funcall callback buffer-json)))
                        (error
                         (message "npm process %s" string)
                         (message "see buffer %s" (process-buffer proc))
+                        ;; TODO perhaps this should receive an error object with the message?
                         (aio-cancel promise "Node exited"))))
                     ('t (message string))))))))
 
@@ -154,13 +153,12 @@ Command will be like 'npm COMMAND FLAGS ARGS' where:
 
 Returns an aio-promise that is fulfilled with the output buffer."
   (-let (((callback . promise) (aio-make-callback :once 't))
-         (proc-buffer (get-buffer-create "*NPM output*")))
+         (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
     (prog1
         promise
       (setq flags (or flags ""))
       (setq args (or args ""))
       (with-current-buffer proc-buffer
-        (erase-buffer)
         (when dir (setq default-directory dir)))
       (make-process
        :name "npm-manager-proc"
@@ -180,23 +178,14 @@ Returns an aio-promise that is fulfilled with the output buffer."
        :sentinel (lambda (proc string)
                    (cond
                     ((equal string "run\n") nil)
-                    ((equal string "finished\n")
+                    ((or (equal string "finished\n")
+                         ;; display result in every case
+                         (string-prefix-p "exited abnormally" string))
                      (with-current-buffer (process-buffer proc)
                        (shell-mode)
                        (view-mode)
                        (pop-to-buffer (current-buffer))
-                       (apply callback (current-buffer) nil)))
-                    ((string-prefix-p "exited abnormally" string)
-                     ;; some npm commands give non-zero exit code AND produce the output we want!
-                     (condition-case nil
-                         (with-current-buffer (process-buffer proc)
-                           (beginning-of-buffer)
-                           (when-let ((buffer-json (json-parse-string (buffer-string) :object-type 'alist)))
-                             (apply callback buffer-json nil)))
-                       (error
-                        (message "npm process %s" string)
-                        (message "see buffer %s" (process-buffer proc))
-                        (aio-cancel promise "Node exited"))))
+                       (funcall callback (current-buffer))))
                     ('t (message string))))))))
 
 (defun npm-manager--make-entry (dependencies package-name)

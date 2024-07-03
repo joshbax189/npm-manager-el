@@ -49,6 +49,10 @@
   :type 'number
   :group 'npm-manager)
 
+(defvar npm-manager-search-call-directory nil
+  "The directory to install packages to.")
+(make-variable-buffer-local 'npm-manager-search-call-directory)
+
 (defcustom npm-manager-search-registry-host "https://registry.npmjs.org"
   "Which NPM registry server to use."
   :type 'string

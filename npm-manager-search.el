@@ -25,6 +25,7 @@
 (require 'tablist)
 (require 'transient)
 (require 'url)
+(require 'npm-manager)
 
 (defvar npm-manager-search-string ""
   "The currently active search.")
@@ -120,6 +121,7 @@
 (make-variable-buffer-local 'npm-manager-search-user-text)
 
 (defun npm-manager-search--search-suffix (search-input)
+  "Collect user SEARCH-INPUT string and dispatch search."
   (interactive (list (completing-read "search: "
                                       (list npm-manager-search-user-text))))
   (transient-set)
@@ -129,7 +131,10 @@
     (npm-manager-search-text full-search (not (string-empty-p npm-manager-search-string)) search-input)))
 
 (defun npm-manager-search-text (search-string &optional reuse-buffer original-input)
-  "Search for an NPM package using SEARCH-STRING."
+  "Search for an NPM package using SEARCH-STRING.
+
+If REUSE-BUFFER is non-nil replace current buffer with result.
+ORIGINAL-INPUT is the user input search string without modifiers."
   (interactive "M")
   (if reuse-buffer
       (rename-buffer (format "NPM search: %s" search-string))

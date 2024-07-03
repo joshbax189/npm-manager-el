@@ -62,20 +62,26 @@ Filenotify callback responding to change EVENT."
 (defun npm-manager--remove-package-watch ()
   "Remove file watcher from package.json.
 
-Must be called with the npm-manager buffer as current."
+Must be called with the `npm-manager' buffer as current."
   (when npm-manager-package-json-watcher
     (message "removed package.json watcher")
     (file-notify-rm-watch npm-manager-package-json-watcher)))
 
 (defun npm-manager--get-package-json-path ()
-  "Return the path to package.json active for the current directory."
+  "Return the path to package.json active for the current directory.
+
+If there is no package.json in any parent directory, then return a
+new package.json in the current directory."
   (let ((prefix (with-temp-buffer
                   (shell-command "npm prefix" 't)
                   (string-trim (buffer-string)))))
     (concat prefix "/package.json")))
 
 (defun npm-manager--get-node-modules-path ()
-  "Return the path to node_modules active for the current directory."
+  "Return the path to node_modules active for the current directory.
+
+If there is no node_modules folder in any parent directory, then return a
+non-existing node_modules folder in the current directory."
   (with-temp-buffer
     (shell-command "npm root" 't)
     (string-trim (buffer-string))))
@@ -110,7 +116,8 @@ Must be called with the npm-manager buffer as current."
     (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
 
 (defun npm-manager--capture-command (command-string)
-  "Run npm command COMMAND-STRING and parse output as JSON, returning it as an aio-promise."
+  "Run npm command COMMAND-STRING and parse output as JSON.
+Returns an `aio-promise' containing the parsed JSON."
   (-let (((callback . promise) (aio-make-callback :once 't)))
     (prog1
         promise
@@ -148,12 +155,14 @@ Must be called with the npm-manager buffer as current."
 (defun npm-manager--display-command (command flags args &optional dir)
   "Run a command and display output in a new buffer.
 
-Command will be like 'npm COMMAND FLAGS ARGS' where:
+Command will be like `npm COMMAND FLAGS ARGS' where:
   COMMAND is a string
   FLAGS is a string, and
   ARGS is a string.
 
-Returns an aio-promise that is fulfilled with the output buffer."
+Command will execute in DIR, if given.
+
+Returns an `aio-promise' that is fulfilled with the output buffer."
   (-let (((callback . promise) (aio-make-callback :once 't))
          (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
     (prog1
@@ -227,7 +236,8 @@ DEPENDENCIES is the output of npm list --json."
            package-names)))
 
 (defun npm-manager-list-installed-versions ()
-  "Return the dependencies prop of npm list.  This is a list of installed dependency versions."
+  "Return the dependencies prop of npm list.
+This is a list of installed dependency versions."
   (condition-case nil
       (let* ((output (aio-wait-for (npm-manager--capture-command "npm list --json")))
              (all-dependencies (map-elt (car output) 'dependencies))
@@ -256,7 +266,8 @@ Returns a list: (type requested-version)."
      '("" ""))))
 
 (defun npm-manager-read-packages ()
-  "Use to directly list packages from package.json as a backup to npm-manager-list-installed-versions."
+  "List packages from package.json instead of node_modules.
+Use when `npm-manager-list-installed-versions' doesn't work."
   (unless npm-manager-package-json (error "Missing package.json"))
 
   (append

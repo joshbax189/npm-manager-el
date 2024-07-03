@@ -7,7 +7,9 @@
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Requires: (aio dash json tablist transient url)
+;; Package-Version: 0.1.0
+
+;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -70,8 +72,7 @@
                              .version
                              (npm-manager-search--format-score (map-nested-elt score '(detail quality)))
                              (npm-manager-search--format-score (map-nested-elt score '(detail popularity)))
-                             (npm-manager-search--format-score (map-nested-elt score '(detail maintenance)))
-                             ))))
+                             (npm-manager-search--format-score (map-nested-elt score '(detail maintenance)))))))
            data)))
 
 (defun npm-manager-search-info ()
@@ -113,8 +114,7 @@
    ("I" "Show/filter packages that are insecure or have vulnerable dependencies" "is:insecure" )
    ("x" "Don't boost exact matches" "boost-exact:false")
    ]
-  [("s" "Enter search text" npm-manager-search--search-suffix)]
-  )
+  [("s" "Enter search text" npm-manager-search--search-suffix)])
 
 (defvar npm-manager-search-user-text "" "Last input.")
 (make-variable-buffer-local 'npm-manager-search-user-text)

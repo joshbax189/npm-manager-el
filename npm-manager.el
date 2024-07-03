@@ -7,8 +7,9 @@
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; TODO which versions?
-;; Package-Requires: (aio dash json tablist transient)
+;; Package-Version: 0.1.0
+
+;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -20,9 +21,10 @@
 
 (require 'aio)
 (require 'dash)
-(require 'json)
-(require 'tablist)
 (require 'transient)
+(require 'tablist)
+
+(require 'json)
 (require 'ansi-color)
 (require 'filenotify)
 

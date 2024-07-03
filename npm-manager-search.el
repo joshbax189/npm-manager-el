@@ -54,7 +54,7 @@
   :type 'string
   :group 'npm-manager)
 
-(defun npm-manager-search-fetch (search-string)
+(defun npm-manager-search--fetch (search-string)
   "Search for SEARCH-STRING using NPM registry API."
   (-let [(callback . promise) (aio-make-callback :once 't)]
     (url-retrieve (format "%s/-/v1/search?size=%s&text=%s" npm-manager-search-registry-host npm-manager-search-result-limit search-string)
@@ -72,7 +72,7 @@
   (interactive)
   ;; see https://www.npmjs.com/package/libnpmsearch#api
   ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
-  (let* ((result (car (aio-wait-for (npm-manager-search-fetch npm-manager-search-string))))
+  (let* ((result (car (aio-wait-for (npm-manager-search--fetch npm-manager-search-string))))
          (data (map-elt result 'objects)))
     (--map (list it
                  (let ((package (map-elt it 'package))

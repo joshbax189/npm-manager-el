@@ -59,9 +59,9 @@ Filenotify callback responding to change EVENT."
 
     (when (equal 'changed event-type)
         (message "package.json change detected")
-        (npm-manager-parse-package-json)
+        (npm-manager--parse-package-json)
         ;; This will refresh view as a side-effect
-        (npm-manager-run-package-audit (current-buffer)))))
+        (npm-manager--run-package-audit (current-buffer)))))
 
 (defun npm-manager--set-package-watch (manager-buffer)
   "Reload MANAGER-BUFFER's package.json file on file change."
@@ -99,14 +99,14 @@ non-existing node_modules folder in the current directory."
     (shell-command "npm root" 't)
     (string-trim (buffer-string))))
 
-(defun npm-manager-parse-package-json ()
+(defun npm-manager--parse-package-json ()
   "Store parsed package.json in buffer-local variable."
   (setq npm-manager-package-json (json-read-file (npm-manager--get-package-json-path))))
 
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)
 
-(aio-defun npm-manager-run-package-audit (manager-buffer)
+(aio-defun npm-manager--run-package-audit (manager-buffer)
   "Store output of npm audit in buffer-local variable of MANAGER-BUFFER."
   (if (not (file-exists-p (npm-manager--get-node-modules-path)))
       (message "Skipping npm audit")
@@ -216,13 +216,13 @@ Returns an `aio-promise' that is fulfilled with the output buffer."
   "Create tablist entry given PACKAGE-NAME symbol.
 
 DEPENDENCIES is the output of npm list --json."
-  (-let* (((dependency requested-version) (npm-manager-read-dep-type package-name))
+  (-let* (((dependency requested-version) (npm-manager--read-dep-type package-name))
           (name (symbol-name package-name))
           (propertized-name (if (equal dependency "req")
                                 (propertize name 'font-lock-face 'bold)
                               name))
           (installed-version (map-nested-elt dependencies (list package-name 'version)))
-          (vulnerabilities (npm-manager-read-vuln package-name)))
+          (vulnerabilities (npm-manager--read-vuln package-name)))
 
    (apply #'vector
           (list
@@ -235,21 +235,21 @@ DEPENDENCIES is the output of npm list --json."
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
   (interactive)
-  (unless npm-manager-package-json (npm-manager-parse-package-json))
+  (unless npm-manager-package-json (npm-manager--parse-package-json))
   ;; trigger async call but don't block
-  (unless npm-manager-audit-json (npm-manager-run-package-audit (current-buffer)))
+  (unless npm-manager-audit-json (npm-manager--run-package-audit (current-buffer)))
 
   (message (map-elt npm-manager-package-json 'name))
   (message (map-elt npm-manager-package-json 'version))
-  (let* ((installed-packages (npm-manager-list-installed-versions))
+  (let* ((installed-packages (npm-manager--list-installed-versions))
          (package-names (if installed-packages
                             (map-keys installed-packages)
-                          (map-keys (npm-manager-read-packages)))))
+                          (map-keys (npm-manager--read-packages)))))
     (--map (list it (npm-manager--make-entry installed-packages it))
            package-names)))
 
-(defun npm-manager-list-installed-versions ()
-  "Return the dependencies prop of npm list.
+(defun npm-manager--list-installed-versions ()
+  "Return the dependencies prop of `npm list' output.
 This is a list of installed dependency versions."
   (condition-case nil
       (let* ((output (aio-wait-for (npm-manager--capture-command "npm list --json")))
@@ -261,7 +261,7 @@ This is a list of installed dependency versions."
         filtered-dependencies)
     (error '())))
 
-(defun npm-manager-read-dep-type (package-name)
+(defun npm-manager--read-dep-type (package-name)
   "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.
 Returns a list: (type requested-version)."
   (let ((core-deps     (map-nested-elt npm-manager-package-json `(dependencies ,package-name)))
@@ -278,9 +278,9 @@ Returns a list: (type requested-version)."
      (and bundle-deps   `("bundle" ,bundle-deps))
      '("" ""))))
 
-(defun npm-manager-read-packages ()
+(defun npm-manager--read-packages ()
   "List packages from package.json instead of node_modules.
-Use when `npm-manager-list-installed-versions' doesn't work."
+Use when `npm-manager--list-installed-versions' doesn't work."
   (unless npm-manager-package-json (error "Missing package.json"))
 
   (append
@@ -290,7 +290,7 @@ Use when `npm-manager-list-installed-versions' doesn't work."
    (map-elt npm-manager-package-json 'optionalDependencies)
    (map-elt npm-manager-package-json 'bundleDependencies)))
 
-(defun npm-manager-read-vuln (package-name)
+(defun npm-manager--read-vuln (package-name)
   "Get vulnerability reports for PACKAGE-NAME symbol.
 Returns a string high/medium/low or empty."
   (let ((severity (map-nested-elt npm-manager-audit-json `(vulnerabilities ,package-name severity) "")))
@@ -344,7 +344,7 @@ Returns a string high/medium/low or empty."
   "Start npm manager interface in the directory."
   (interactive)
   (pop-to-buffer (format "NPM %s" default-directory))
-  (npm-manager-parse-package-json)
+  (npm-manager--parse-package-json)
   (npm-manager-mode)
   (npm-manager--set-package-watch (current-buffer))
   (add-hook 'kill-buffer-hook #'npm-manager--remove-package-watch)

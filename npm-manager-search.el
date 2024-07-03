@@ -93,8 +93,16 @@
       (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
 
 ;;;###autoload
-(transient-define-prefix npm-manager-search ()
+(defun npm-manager-search ()
   "Search npm packages."
+  (interactive)
+  ;; TODO this doesn't appear to work
+  (when (transient-prefix-object) (transient-reset))
+  (setq npm-manager-search-call-directory "")
+  (npm-manager-search-again))
+
+(transient-define-prefix npm-manager-search-again ()
+  "Search npm packages inheriting previous search state."
   [("a" "author" "author=")
    ("m" "maintainer" "maintainer=")
    ("@" "scope" "scope=" :prompt "Package scope: ")
@@ -108,20 +116,37 @@
   [("s" "Enter search text" npm-manager-search--search-suffix)]
   )
 
+(defvar npm-manager-search-user-text "" "Last input.")
+(make-variable-buffer-local 'npm-manager-search-user-text)
+
 (defun npm-manager-search--search-suffix (search-input)
-  (interactive "M")
+  (interactive (list (completing-read "search: "
+                                      (list npm-manager-search-user-text))))
+  (transient-set)
   (let* ((data (transient-args transient-current-command))
          (clean-data (--map (string-replace "=" ":" it) data))
          (full-search (string-join (cons search-input clean-data) " ")))
-    (npm-manager-search-text full-search)))
+    (npm-manager-search-text full-search (not (string-empty-p npm-manager-search-string)) search-input)))
 
-(defun npm-manager-search-text (search-string)
+(defun npm-manager-search-text (search-string &optional reuse-buffer original-input)
   "Search for an NPM package using SEARCH-STRING."
   (interactive "M")
-  (pop-to-buffer (format "NPM search: %s" search-string))
-  (npm-manager-search-mode)
+  (if reuse-buffer
+      (rename-buffer (format "NPM search: %s" search-string))
+    (pop-to-buffer (format "NPM search: %s" search-string))
+    (npm-manager-search-mode))
+  (when original-input (setq npm-manager-search-user-text original-input))
   (setq npm-manager-search-string search-string)
   (tablist-revert))
+
+;; TODO the keymap appears incorrect in the mode help.
+;; e.g. < > and s
+(defvar npm-manager-search-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "I"         #'npm-manager-search-install)
+    (define-key map "S"         #'npm-manager-search-again)
+    (define-key map (kbd "RET") #'npm-manager-search-info))
+  "Keymap for `npm-manager-search-mode'.")
 
 (define-derived-mode npm-manager-search-mode tabulated-list-mode "NPM Search"
   "NPM search result display major mode."

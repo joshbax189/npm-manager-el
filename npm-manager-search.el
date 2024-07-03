@@ -1,4 +1,4 @@
-;;; npm-manager-search.el --- Emacs search npm package registry   -*- lexical-binding: t -*-
+;;; npm-manager-search.el --- Search npm package registry   -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024 Josh Bax
 
@@ -12,6 +12,19 @@
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
 ;; This file is not part of GNU Emacs.
+
+;; NPM manager is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published
+;; by the Free Software Foundation, either version 3 of the License,
+;; or (at your option) any later version.
+;;
+;; NPM manager is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; You should have received a copy of the GNU General Public License
+;; along with NPM manager.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
 

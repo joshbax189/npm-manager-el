@@ -41,12 +41,12 @@
   :group 'npm-manager)
 
 (defun npm-manager-search-fetch (search-string)
-  "Call search API."
+  "Search for SEARCH-STRING using NPM registry API."
   (-let [(callback . promise) (aio-make-callback :once 't)]
     (url-retrieve (format "%s/-/v1/search?size=%s&text=%s" npm-manager-search-registry-host npm-manager-search-result-limit search-string)
                   (lambda (&rest _1)
-                    (while (looking-at "^.") (delete-line))
-                    (apply callback (json-parse-buffer :object-type 'alist) nil)))
+                    (while (looking-at "^.") (forward-line))
+                    (funcall callback (json-parse-string (buffer-substring (point) (point-max)) :object-type 'alist))))
     promise))
 
 (defun npm-manager-search--format-score (score-num)
@@ -68,7 +68,7 @@
                              (or .description "")
                              (or (map-elt .author 'name)
                                  "")
-                             (car (string-split .date "T"))
+                             (car (split-string .date "T"))
                              .version
                              (npm-manager-search--format-score (map-nested-elt score '(detail quality)))
                              (npm-manager-search--format-score (map-nested-elt score '(detail popularity)))

@@ -117,7 +117,7 @@ Must be called with the npm-manager buffer as current."
       (make-process
        :name "npm-manager-proc"
        :buffer (generate-new-buffer (format "npm-manager-proc %s" command-string) 't)
-       :command (string-split command-string)
+       :command (split-string command-string)
        :noquery 't
        :sentinel (lambda (proc string)
                    (cond
@@ -165,7 +165,7 @@ Returns an aio-promise that is fulfilled with the output buffer."
       (make-process
        :name "npm-manager-proc"
        :buffer proc-buffer
-       :command (append (list "npm" command) (string-split flags) '("--color" "always") (string-split args))
+       :command (append (list "npm" command) (split-string flags) '("--color" "always") (split-string args))
        :noquery 't
        :filter (lambda (proc string)
                  (when (buffer-live-p (process-buffer proc))
@@ -307,11 +307,10 @@ Returns a string high/medium/low or empty."
   "Change dependency type of package."
   (interactive (list (completing-read
                       "Install as: "
-                      (list "Prod" "Dev" "Optional")
-                      )))
+                      (list "Prod" "Dev" "Optional"))))
   (let ((npm-buffer (current-buffer))
         (package-name (seq-elt (tabulated-list-get-entry) 0))
-        (flag (format "-%s" (string-limit new-type 1))))
+        (flag (format "-%s" (seq-take new-type 1))))
     (aio-await (npm-manager--display-command "i" flag package-name default-directory))
     (with-current-buffer npm-buffer
       (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))

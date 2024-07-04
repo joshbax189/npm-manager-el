@@ -343,12 +343,15 @@ Returns a string high/medium/low or empty."
 (defun npm-manager ()
   "Start npm manager interface in the directory."
   (interactive)
-  (pop-to-buffer (format "NPM %s" default-directory))
-  (npm-manager--parse-package-json)
-  (npm-manager-mode)
-  (npm-manager--set-package-watch (current-buffer))
-  (add-hook 'kill-buffer-hook #'npm-manager--remove-package-watch)
-  (tablist-revert))
+  (let* ((npm-buffer (format "NPM %s" default-directory))
+         (buffer-exists (get-buffer npm-buffer)))
+    (pop-to-buffer npm-buffer)
+    (npm-manager--parse-package-json)
+    (unless buffer-exists
+      (npm-manager-mode)
+      (npm-manager--set-package-watch (current-buffer))
+      (add-hook 'kill-buffer-hook #'npm-manager--remove-package-watch))
+    (tablist-revert)))
 
 (defun npm-manager-unload-function ()
   "Cleanup mode hooks."

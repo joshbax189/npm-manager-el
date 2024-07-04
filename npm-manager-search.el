@@ -177,9 +177,9 @@ ORIGINAL-INPUT is the user input search string without modifiers."
                                ("Author" 18 t)
                                ("Date" 12 t)
                                ("Version" 12)
-                               ("Qual" 5)
-                               ("Pop" 5)
-                               ("Maint" 5)]
+                               ("Qual" 5 t)
+                               ("Pop" 5 t)
+                               ("Maint" 5 t)]
         tabulated-list-padding 2
         tabulated-list-entries #'npm-manager-search-refresh)
   (tabulated-list-init-header)

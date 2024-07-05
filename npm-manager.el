@@ -333,6 +333,12 @@ Returns a string high/medium/low or empty."
        (flag (format "-%s" (seq-take new-type 1))))
    (aio-await (npm-manager--display-command "i" flag package-name))))
 
+(aio-defun npm-manager-display-audit ()
+ "Run npm audit and show result."
+ (interactive)
+ (message "Run: npm audit")
+ (aio-await (npm-manager--display-command "audit" "" "")))
+
 ;;;###autoload
 (defun npm-manager ()
   "Start npm manager interface in the directory."

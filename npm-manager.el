@@ -101,7 +101,10 @@ non-existing node_modules folder in the current directory."
 
 (defun npm-manager--parse-package-json ()
   "Store parsed package.json in buffer-local variable."
-  (setq npm-manager-package-json (json-read-file (npm-manager--get-package-json-path))))
+  (condition-case nil
+      (setq npm-manager-package-json
+            (json-read-file (npm-manager--get-package-json-path)))
+    (file-missing (message "Missing package.json"))))
 
 (defvar npm-manager-audit-json nil "Parsed output of npm audit.")
 (make-variable-buffer-local 'npm-manager-audit-json)

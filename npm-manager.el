@@ -168,15 +168,13 @@ Returns an `aio-promise' containing the parsed JSON."
                         (aio-cancel promise "Node exited"))))
                     ('t (message string))))))))
 
-(defun npm-manager--display-command (command flags args &optional dir)
+(defun npm-manager--display-command (command flags args)
   "Run a command and display output in a new buffer.
 
 Command will be like `npm COMMAND FLAGS ARGS' where:
   COMMAND is a string
   FLAGS is a string, and
   ARGS is a string.
-
-Command will execute in DIR, if given.
 
 Returns an `aio-promise' that is fulfilled with the output buffer."
   (-let (((callback . promise) (aio-make-callback :once 't))
@@ -185,8 +183,6 @@ Returns an `aio-promise' that is fulfilled with the output buffer."
         promise
       (setq flags (or flags ""))
       (setq args (or args ""))
-      (with-current-buffer proc-buffer
-        (when dir (setq default-directory dir)))
       (make-process
        :name "npm-manager-proc"
        :buffer proc-buffer
@@ -317,30 +313,25 @@ Returns a string high/medium/low or empty."
                  "@types/"
                  (list (or (string-remove-prefix "@types/" (seq-elt (tabulated-list-get-entry) 0))
                            "")))))
-  (let ((npm-buffer (current-buffer)))
-    (aio-await (npm-manager--display-command "i" "-D" (format "@types/%s" base-package-name) default-directory))
-    (with-current-buffer npm-buffer
-      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+  (aio-await (npm-manager--display-command "i" "-D" (format "@types/%s" base-package-name))))
 
 (aio-defun npm-manager-install-packages ()
   "Runs npm install."
   (interactive)
-  (let ((npm-buffer (current-buffer)))
-    (aio-await (npm-manager--display-command "i" nil nil default-directory))
-    (with-current-buffer npm-buffer
-      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+ (let ((npm-buffer (current-buffer)))
+   (aio-await (npm-manager--display-command "i"))
+   (with-current-buffer npm-buffer
+     (when (equal major-mode 'npm-manager-mode)
+       (revert-buffer)))))
 
 (aio-defun npm-manager-change-package-type (new-type)
-  "Change dependency type of package."
-  (interactive (list (completing-read
-                      "Install as: "
-                      (list "Prod" "Dev" "Optional"))))
-  (let ((npm-buffer (current-buffer))
-        (package-name (seq-elt (tabulated-list-get-entry) 0))
-        (flag (format "-%s" (seq-take new-type 1))))
-    (aio-await (npm-manager--display-command "i" flag package-name default-directory))
-    (with-current-buffer npm-buffer
-      (when (equal major-mode 'npm-manager-mode) (revert-buffer)))))
+ "Change dependency type of package."
+ (interactive (list
+               (completing-read
+                "Install as: " (list "Prod" "Dev" "Optional"))))
+ (let ((package-name (seq-elt (tabulated-list-get-entry) 0))
+       (flag (format "-%s" (seq-take new-type 1))))
+   (aio-await (npm-manager--display-command "i" flag package-name))))
 
 ;;;###autoload
 (defun npm-manager ()

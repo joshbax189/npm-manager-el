@@ -113,7 +113,7 @@
          (package-name (seq-elt entry 0)))
     (let ((default-directory package-directory))
       ;; TODO allow setting the install type
-      (aio-await (npm-manager--display-command "i" "-D" package-name package-directory)))))
+      (aio-await (npm-manager--display-command "i" "-D" package-name)))))
 
 ;;;###autoload
 (defun npm-manager-search ()

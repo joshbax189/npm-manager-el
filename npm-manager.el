@@ -357,6 +357,16 @@ Returns a string high/medium/low or empty."
   "Cleanup mode hooks."
   (remove-hook 'kill-buffer-hook #'npm-manager--remove-package-watch))
 
+(defvar npm-manager-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "I"         #'npm-manager-change-package-type)
+    (define-key map "A"         #'npm-manager-display-audit)
+    (define-key map "S"         #'npm-manager-search)
+    (define-key map "D"         #'npm-manager-uninstall)
+    (define-key map (kbd "RET") #'npm-manager-info)
+    map)
+  "Keymap for `npm-manager-search-mode'.")
+
 (define-derived-mode npm-manager-mode tabulated-list-mode "NPM Manager"
   "NPM manager major mode."
   (setq tabulated-list-format [("Package" 48 t)

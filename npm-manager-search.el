@@ -49,14 +49,6 @@
   :type 'number
   :group 'npm-manager)
 
-(defvar npm-manager-search-call-directory nil
-  "The directory to install packages to.")
-(make-variable-buffer-local 'npm-manager-search-call-directory)
-
-(defvar npm-manager-search-origin-buffer nil
-  "The NPM manager buffer from which the search originated, if any.")
-(make-variable-buffer-local 'npm-manager-search-origin-buffer)
-
 (defcustom npm-manager-search-registry-host "https://registry.npmjs.org"
   "Which NPM registry server to use."
   :type 'string
@@ -140,28 +132,22 @@
       (aio-await (npm-manager--display-command "i" arg-string package-name)))))
 
 ;;;###autoload
-(defun npm-manager-search ()
+(transient-define-prefix npm-manager-search ()
   "Search npm packages."
-  (interactive)
-  ;; TODO this doesn't appear to work
-  (when (transient-prefix-object) (transient-reset))
-  (setq npm-manager-search-call-directory default-directory)
-  (when (equal major-mode 'npm-manager-mode)
-    (setq npm-manager-search-origin-buffer (current-buffer)))
-  (npm-manager-search-again))
+  :incompatible '(("is:unstable" "not:unstable")
+                  ("is:insecure" "not:insecure"))
 
-(transient-define-prefix npm-manager-search-again ()
-  "Search npm packages inheriting previous search state."
-  [("a" "author" "author=")
+  ["Filters"
+   ("a" "author" "author=")
    ("m" "maintainer" "maintainer=")
    ("@" "scope" "scope=" :prompt "Package scope: ")
-   ("k" "keywords" "keywords=" :prompt "Package keywords: ")
-   ("u" "Exclude packages whose version is < 1.0.0" "not:unstable")
-   ("i" "Exclude packages that are insecure or have vulnerable dependencies" "not:insecure")
-   ("U" "Show/filter packages whose version is < 1.0.0)" "is:unstable")
-   ("I" "Show/filter packages that are insecure or have vulnerable dependencies" "is:insecure" )
-   ("x" "Don't boost exact matches" "boost-exact:false")
-   ]
+   ("k" "keywords" "keywords=" :prompt "Package keywords: ")]
+
+  ["Stability"
+   ("nu" "No packages whose version is < 1.0.0" "not:unstable")
+   ("u" "Only packages whose version is < 1.0.0)" "is:unstable")
+   ("ni" "No packages that are insecure or have vulnerable dependencies" "not:insecure")
+   ("i" "Only packages that are insecure or have vulnerable dependencies" "is:insecure" )]
   [("s" "Enter search text" npm-manager-search--search-suffix)])
 
 (defvar npm-manager-search-user-text "" "Last input.")
@@ -183,10 +169,14 @@
 If REUSE-BUFFER is non-nil replace current buffer with result.
 ORIGINAL-INPUT is the user input search string without modifiers."
   (interactive "M")
-  (if reuse-buffer
-      (rename-buffer (format "NPM search: %s" search-string))
-    (pop-to-buffer (format "NPM search: %s" search-string))
-    (npm-manager-search-mode))
+  (let ((search-buffer-name (format "NPM search: %s" search-string)))
+    (if reuse-buffer
+        (rename-buffer search-buffer-name 't)
+      ;; else
+      (when (buffer-live-p search-buffer-name)
+        (kill-buffer search-buffer-name)) ;; TODO or just reset the default directory to the caller's
+      (pop-to-buffer search-buffer-name)
+      (npm-manager-search-mode)))
   (when original-input (setq npm-manager-search-user-text original-input))
   (setq npm-manager-search-string search-string)
   (tablist-revert))
@@ -196,8 +186,9 @@ ORIGINAL-INPUT is the user input search string without modifiers."
 (defvar npm-manager-search-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "I"         #'npm-manager-search-install)
-    (define-key map "S"         #'npm-manager-search-again)
-    (define-key map (kbd "RET") #'npm-manager-search-info))
+    (define-key map "S"         #'npm-manager-search)
+    (define-key map (kbd "RET") #'npm-manager-search-info)
+    map)
   "Keymap for `npm-manager-search-mode'.")
 
 (define-derived-mode npm-manager-search-mode tabulated-list-mode "NPM Search"

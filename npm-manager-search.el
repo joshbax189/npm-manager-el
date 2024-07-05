@@ -105,15 +105,39 @@
          (ver (seq-elt entry 4)))
     (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
 
-(aio-defun npm-manager-search-install (package-directory)
+(transient-define-prefix npm-manager-search-install ()
+  "Search npm packages inheriting previous search state."
+  :incompatible '(("--save-prod" "--save-dev" "--save-optional" "--no-save")
+                  ("--save-exact" "--save-bundle" "--no-save"))
+  :value '("--save-prod")
+  ["Save To"
+   ("-P" "prod" "--save-prod")
+   ("-D" "dev" "--save-dev")
+   ("-O" "optional" "--save-optional")
+   ("ns" "no save" "--no-save")]
+
+  ["Save As"
+   ("-E" "exact" "--save-exact")
+   ("-B" "add to bundle" "--save-bundle")
+   ("-g" "global" "--global")]
+
+  ["Extra"
+   ("-f" "force fetch" "--force")
+   ("-d" "dry run" "--dry-run")
+   ("plo" "package lock only" "--package-lock-only")
+   ("lpd" "legacy peer deps" "--legacy-peer-deps")
+   ]
+  [(:info (lambda () (format "target: %s" default-directory)))
+   ("I" "install package" npm-manager-search-install-suffix)])
+
+(aio-defun npm-manager-search-install-suffix (package-directory)
   "Install package at point into PACKAGE-DIRECTORY."
   (interactive "D")
-  (let* ((npm-buffer npm-manager-search-origin-buffer) ;; TODO use this as the init value for package-directory
-         (entry (tabulated-list-get-entry))
-         (package-name (seq-elt entry 0)))
+  (let* ((entry (tabulated-list-get-entry))
+         (package-name (seq-elt entry 0))
+         (arg-string (string-join (transient-args transient-current-command) " ")))
     (let ((default-directory package-directory))
-      ;; TODO allow setting the install type
-      (aio-await (npm-manager--display-command "i" "-D" package-name)))))
+      (aio-await (npm-manager--display-command "i" arg-string package-name)))))
 
 ;;;###autoload
 (defun npm-manager-search ()

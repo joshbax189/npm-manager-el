@@ -7,8 +7,9 @@ Inspired by the excellent [[https://github.com/silex/docker.el][Docker.el]]
 
 ** Install
 
-No specific configuration. Simply install from this repo:
+No specific configuration. Simply install from this repo.
 
+E.g. using =straight=
 #+begin_src emacs-lisp
 (use-package npm-manager
   :straight (npm-manager :fetcher git :url "https://github.com/joshbax189/npm-manager-el"))
@@ -20,6 +21,21 @@ From anywhere in a node project, run =M-x npm-manager=
 
 This will list packages from the project's package.json sorted by type, with installed version and any warnings raised by =npm audit=
 
-Other commands
-- =M-x npm-manager-search= like =npm search= with more info and features exposed
-- =M-x npm-manager-info= run =npm info= on the listed package
+[[./images/npm-manager-main.png]]
+/Running npm-manager in a project directory/
+
+Run =M-x npm-manager-search= to search the NPM registry for packages. This is like =npm search= with more info and features exposed, including quality and popularity ratings.
+You can install packages directly from search results too.
+
+[[./images/npm-manager-search.png]]
+/Searching for typescript package/
+
+*** Planned Features
+- support pnpm and yarn
+- inspect audit reports interactively
+
+** Changelog
+
+*** 0.1
+- npm-manager: list packages and warnings
+- npm-manager-search: search registry and install packages

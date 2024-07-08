@@ -85,10 +85,10 @@ Must be called with the `npm-manager' buffer as current."
 
 If there is no package.json in any parent directory, then return a
 new package.json in the current directory."
-  (let ((prefix (with-temp-buffer
+  (let ((default-directory (with-temp-buffer
                   (shell-command "npm prefix" 't)
                   (string-trim (buffer-string)))))
-    (concat prefix "/package.json")))
+    (expand-file-name "package.json")))
 
 (defun npm-manager--get-node-modules-path ()
   "Return the path to node_modules active for the current directory.

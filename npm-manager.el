@@ -40,6 +40,9 @@
 (require 'json)
 (require 'ansi-color)
 (require 'filenotify)
+(require 'shell)
+
+(declare-function npm-manager-search "npm-manager-search")
 
 (defgroup npm-manager nil
   "Interface to NPM."

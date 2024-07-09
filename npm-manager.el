@@ -322,7 +322,7 @@ Returns a string high/medium/low or empty."
   "Runs npm install."
   (interactive)
  (let ((npm-buffer (current-buffer)))
-   (aio-await (npm-manager--display-command "i"))
+   (aio-await (npm-manager--display-command "i" "" ""))
    (with-current-buffer npm-buffer
      (when (equal major-mode 'npm-manager-mode)
        (revert-buffer)))))

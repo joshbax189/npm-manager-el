@@ -54,14 +54,28 @@
   :type 'string
   :group 'npm-manager)
 
-(defun npm-manager-search--fetch (search-string)
-  "Search for SEARCH-STRING using NPM registry API."
-  (-let [(callback . promise) (aio-make-callback :once 't)]
-    (url-retrieve (format "%s/-/v1/search?size=%s&text=%s" npm-manager-search-registry-host npm-manager-search-result-limit search-string)
-                  (lambda (&rest _1)
-                    (while (looking-at "^.") (forward-line))
-                    (funcall callback (json-parse-string (buffer-substring (point) (point-max)) :object-type 'alist))))
-    promise))
+(aio-defun npm-manager-search--fetch (search-string)
+ "Search for SEARCH-STRING using NPM registry API.
+
+Returns a promise that is fulfilled with the decoded
+JSON search result."
+ (-let* ((registry-url
+          (format "%s/-/v1/search?size=%s&text=%s"
+                  npm-manager-search-registry-host
+                  npm-manager-search-result-limit
+                  search-string))
+         (((&plist :error the-error) . res-buffer)
+          (aio-await (aio-url-retrieve registry-url))))
+   (if the-error
+       (signal the-error)
+     (with-current-buffer res-buffer
+       (goto-char (point-min))
+       (while (looking-at "^.")
+         (forward-line))
+       (prog1 (json-parse-string (buffer-substring
+                                  (point) (point-max))
+                                 :object-type 'alist)
+         (kill-buffer))))))
 
 (defun npm-manager-search--format-score (score-num)
   "Format SCORE-NUM for display in tablist."
@@ -72,7 +86,7 @@
   (interactive)
   ;; see https://www.npmjs.com/package/libnpmsearch#api
   ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
-  (let* ((result (car (aio-wait-for (npm-manager-search--fetch npm-manager-search-string))))
+  (let* ((result (aio-wait-for (npm-manager-search--fetch npm-manager-search-string)))
          (data (map-elt result 'objects)))
     (--map (list it
                  (let ((package (map-elt it 'package))

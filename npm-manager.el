@@ -115,7 +115,7 @@ non-existing node_modules folder in the current directory."
     ;; else
     (let ((audit-json))
       ;; aio-await macro doesn't like to be in the let?
-      (setq audit-json (car (aio-await (npm-manager--capture-command "npm audit --json"))))
+      (setq audit-json (aio-await (npm-manager--capture-command "npm audit --json")))
       (with-current-buffer manager-buffer
         (setq npm-manager-audit-json audit-json)
         (message "completed package audit")
@@ -129,10 +129,24 @@ non-existing node_modules folder in the current directory."
          (ver (seq-elt entry 2)))
     (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
 
+(defun npm-manager--consume-json-buffer (&optional buffer)
+  "Parse JSON in BUFFER then kill it.
+
+If BUFFER is not given, use current buffer.
+
+Returns buffer JSON encoded as an assoc."
+  (with-current-buffer (or buffer (current-buffer))
+    ;; json-parse-buffer does not seem to handle trailing whitespace
+    (prog1
+        (json-parse-string (buffer-string)
+                           :object-type 'alist)
+      (kill-buffer))))
+
+;; TODO match args to display-command
 (defun npm-manager--capture-command (command-string)
   "Run npm command COMMAND-STRING and parse output as JSON.
 Returns an `aio-promise' containing the parsed JSON."
-  (-let (((callback . promise) (aio-make-callback :once 't)))
+  (let ((promise (aio-promise)))
     (prog1
         promise
       (make-process
@@ -140,31 +154,26 @@ Returns an `aio-promise' containing the parsed JSON."
        :buffer (generate-new-buffer (format "npm-manager-proc %s" command-string) 't)
        :command (split-string command-string)
        :noquery 't
+       :stderr (get-buffer-create "*NPM Manager process errors*")
        :sentinel (lambda (proc string)
                    (cond
                     ((equal string "run\n") nil)
                     ((equal string "finished\n")
-                     (let (buffer-json
-                           (buffer (process-buffer proc)))
-                      (with-current-buffer buffer
-                        ;; json-parse-buffer does not seem to handle trailing whitespace
-                        (setq buffer-json (json-parse-string (buffer-string)
-                                                              :object-type 'alist)))
-                      (kill-buffer buffer)
-                      (funcall callback buffer-json)))
+                     (let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
+                       (aio-resolve promise (lambda () buffer-json))))
                     ((string-prefix-p "exited abnormally" string)
                      ;; some npm commands give non-zero exit code AND produce the output we want!
+                     (message "npm process errors, see error buffer")
                      (condition-case nil
-                         (with-current-buffer (process-buffer proc)
-                           (when-let ((buffer-json (json-parse-string (buffer-string)
-                                                                      :object-type 'alist)))
-                             (funcall callback buffer-json)))
+                         (when-let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
+                           ;; in this case there is an error prop with a description
+                           (aio-resolve promise (lambda () buffer-json)))
                        (error
                         (message "npm process %s" string)
                         (message "see buffer %s" (process-buffer proc))
-                        ;; TODO perhaps this should receive an error object with the message?
-                        (aio-cancel promise "Node exited"))))
-                    ('t (message string))))))))
+                        (aio-resolve promise (lambda () (error string))))))
+                    ('t
+                     (message "npm process %s" string))))))))
 
 (defun npm-manager--display-command (command flags args)
   "Run a command and display output in a new buffer.
@@ -238,19 +247,19 @@ DEPENDENCIES is the output of npm list --json."
 
   (message (map-elt npm-manager-package-json 'name))
   (message (map-elt npm-manager-package-json 'version))
-  (let* ((installed-packages (npm-manager--list-installed-versions))
+  (let* ((installed-packages (aio-wait-for (npm-manager--list-installed-versions)))
          (package-names (if installed-packages
                             (map-keys installed-packages)
                           (map-keys (npm-manager--read-packages)))))
     (--map (list it (npm-manager--make-entry installed-packages it))
            package-names)))
 
-(defun npm-manager--list-installed-versions ()
+(aio-defun npm-manager--list-installed-versions ()
   "Return the dependencies prop of `npm list' output.
 This is a list of installed dependency versions."
   (condition-case nil
-      (let* ((output (aio-wait-for (npm-manager--capture-command "npm list --json")))
-             (all-dependencies (map-elt (car output) 'dependencies))
+      (let* ((output (aio-await (npm-manager--capture-command "npm list --json")))
+             (all-dependencies (map-elt output 'dependencies))
              ;; remove dependencies marked "extraneous"
              (filtered-dependencies (--filter
                                      (not (map-nested-elt all-dependencies `(,it extraneous)))

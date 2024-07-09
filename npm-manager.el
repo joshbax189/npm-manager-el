@@ -88,9 +88,7 @@ Must be called with the `npm-manager' buffer as current."
 
 If there is no package.json in any parent directory, then return a
 new package.json in the current directory."
-  (let ((default-directory (with-temp-buffer
-                  (shell-command "npm prefix" 't)
-                  (string-trim (buffer-string)))))
+  (let ((default-directory (string-trim (shell-command-to-string "npm prefix"))))
     (expand-file-name "package.json")))
 
 (defun npm-manager--get-node-modules-path ()
@@ -98,9 +96,7 @@ new package.json in the current directory."
 
 If there is no node_modules folder in any parent directory, then return a
 non-existing node_modules folder in the current directory."
-  (with-temp-buffer
-    (shell-command "npm root" 't)
-    (string-trim (buffer-string))))
+  (string-trim (shell-command-to-string "npm root")))
 
 (defun npm-manager--parse-package-json ()
   "Store parsed package.json in buffer-local variable."
@@ -131,7 +127,6 @@ non-existing node_modules folder in the current directory."
   (let* ((entry (tabulated-list-get-entry))
          (name (seq-elt entry 0))
          (ver (seq-elt entry 2)))
-    ;; (async-shell-command (format "npm info %s@%s" name ver) "*NPM output*")
     (npm-manager--display-command "info" "" (format "%s@%s" name ver))))
 
 (defun npm-manager--capture-command (command-string)

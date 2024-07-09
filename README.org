@@ -36,6 +36,9 @@ You can install packages directly from search results too.
 
 ** Changelog
 
+*** 0.1.1
+- Windows compatibility
+
 *** 0.1
 - npm-manager: list packages and warnings
 - npm-manager-search: search registry and install packages

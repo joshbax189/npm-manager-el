@@ -133,8 +133,7 @@ JSON search result."
    ("plo" "package lock only" "--package-lock-only")
    ("lpd" "legacy peer deps" "--legacy-peer-deps")
    ]
-  [(:info (lambda () (format "target: %s" default-directory)))
-   ("I" "install package" npm-manager-search-install-suffix)])
+  [("I" "install package" npm-manager-search-install-suffix)])
 
 (aio-defun npm-manager-search-install-suffix (package-directory)
   "Install package at point into PACKAGE-DIRECTORY."

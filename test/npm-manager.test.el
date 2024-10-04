@@ -148,7 +148,20 @@
 
 ;; TODO
 ;;;; npm-manager--display-command
+
 ;;;; npm-manager--make-entry
+(ert-deftest npm-manager--make-entry/test ()
+  "Tests basic behavior."
+  (with-mock
+    (stub npm-manager--read-dep-type => '("req" "0.0.1"))
+    (stub npm-manager--read-vuln => "medium")
+    (let ((result (npm-manager--make-entry '((foo . ((version . "1.0.0")))) 'foo)))
+     (should (equal
+              (vector "foo" "req" "0.0.1" "1.0.0" "medium")
+              result))
+     (should (equal
+              'bold
+              (get-text-property 0 'font-lock-face (seq-elt result 0)))))))
 
 ;;;; npm-manager-refresh
 

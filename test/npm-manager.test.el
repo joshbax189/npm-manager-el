@@ -155,13 +155,23 @@
   (with-mock
     (stub npm-manager--read-dep-type => '("req" "0.0.1"))
     (stub npm-manager--read-vuln => "medium")
-    (let ((result (npm-manager--make-entry '((foo . ((version . "1.0.0")))) 'foo)))
+    (let ((result (npm-manager--make-entry '((foo . "1.0.0")) 'foo)))
      (should (equal
               (vector "foo" "req" "0.0.1" "1.0.0" "medium")
               result))
      (should (equal
               'bold
               (get-text-property 0 'font-lock-face (seq-elt result 0)))))))
+
+(ert-deftest npm-manager--make-entry/test-empty-deps ()
+  "Tests no dependencies."
+  (with-mock
+    (stub npm-manager--read-dep-type => '("req" "0.0.1"))
+    (stub npm-manager--read-vuln => "medium")
+    (let ((result (npm-manager--make-entry nil 'foo)))
+     (should (equal
+              (vector "foo" "req" "0.0.1" "-" "medium")
+              result)))))
 
 ;;;; npm-manager-refresh
 (ert-deftest npm-manager-refresh/test-initial ()
@@ -181,7 +191,7 @@
   (with-mock
     (stub npm-manager--list-installed-versions => (aio-sleep 1 nil))
     ;; if nil, should call read-packages
-    (mock (npm-manager--read-packages) => '((foo . 1) (bar . 2)))
+    (mock (npm-manager--read-packages) => '(foo bar))
     (with-temp-buffer
       (setq npm-manager-audit-json '(()))
       (setq npm-manager-package-json '(()))
@@ -200,6 +210,17 @@
   (with-temp-buffer
     (should-error (npm-manager--read-packages))))
 
+(ert-deftest-async npm-manager--read-packages/test-match-list-output (done)
+  "Should match output of list-installed-versions."
+  (let* ((default-directory (expand-file-name "./basic_project"))
+         (list-result (aio-wait-for (npm-manager--list-installed-versions))))
+    (with-temp-buffer
+      (npm-manager--parse-package-json)
+      (should (equal
+               (map-keys list-result)
+               (npm-manager--read-packages)))))
+  (funcall done))
+
 ;;;; npm-manager--read-vuln
 ;;;; npm-manager-tree
 
@@ -208,7 +229,16 @@
   "List installed packages in JSON."
   (let* ((default-directory (expand-file-name "./basic_project"))
          (result (aio-wait-for (npm-manager--list-installed-versions))))
-    (should (equal (map-keys result) '(camelcase change-case))))
+    (should (equal result
+                   '((camelcase . "8.0.0") (change-case . "5.4.4")))))
+  (funcall done))
+
+(ert-deftest-async npm-manager--list-installed-versions/test-extraneous (done)
+  "List installed packages in JSON."
+  (with-mock
+    (stub npm-manager--capture-command => (aio-sleep 0.1 '((dependencies . ((foo . ((extraneous . t))))))))
+    (let ((result (aio-wait-for (npm-manager--list-installed-versions))))
+      (should (equal (map-keys result) nil))))
   (funcall done))
 
 (ert-deftest-async npm-manager--list-installed-versions/test-empty (done)

@@ -221,13 +221,13 @@ Returns an `aio-promise' that is fulfilled with the output buffer."
 (defun npm-manager--make-entry (dependencies package-name)
   "Create tablist entry given PACKAGE-NAME symbol.
 
-DEPENDENCIES is the output of npm list --json."
+DEPENDENCIES is an alist of package name to version string."
   (-let* (((dependency requested-version) (npm-manager--read-dep-type package-name))
           (name (symbol-name package-name))
           (propertized-name (if (equal dependency "req")
                                 (propertize name 'font-lock-face 'bold)
                               name))
-          (installed-version (map-nested-elt dependencies `(,package-name version)))
+          (installed-version (map-elt dependencies package-name))
           (vulnerabilities (npm-manager--read-vuln package-name)))
    (vector
     propertized-name
@@ -248,26 +248,27 @@ DEPENDENCIES is the output of npm list --json."
   (let* ((installed-packages (aio-wait-for (npm-manager--list-installed-versions)))
          (package-names (if installed-packages
                             (map-keys installed-packages)
-                          (map-keys (npm-manager--read-packages)))))
+                          (npm-manager--read-packages))))
     (--map (list it (npm-manager--make-entry installed-packages it))
            package-names)))
 
 (aio-defun npm-manager--list-installed-versions ()
-  "Return a list of installed dependency packages and their versions.
+  "Return an alist of installed dependency packages and their versions.
 Example output:
-((camelcase (version . \"8.0.0\")
-            (resolved . \"https://registry.npmjs.org/camelcase/-/camelcase-8.0.0.tgz\")
-            (overridden . :false))
-(change-case (version . \"5.4.4\")
-             (resolved . \"https://registry.npmjs.org/change-case/-/change-case-5.4.4.tgz\")
-             (overridden . :false)))"
+((camelcase . \"8.0.0\")
+ (change-case . \"5.4.4\"))"
   (ignore-errors
     (let* ((installed-packages (aio-await (npm-manager--capture-command "npm list --json")))
-           (dependencies (map-elt installed-packages 'dependencies)))
-      ;; remove dependencies marked "extraneous"
-      (--remove
-       (map-nested-elt dependencies `(,it extraneous))
-       dependencies))))
+           (dependencies (map-elt installed-packages 'dependencies))
+           (dependencies (map-into dependencies 'alist))
+           ;; Remove dependencies marked "extraneous".
+           ;; These are the result of npm i --no-save for example.
+           (true-dependencies (--remove
+                               (map-elt (cdr it) 'extraneous)
+                               dependencies)))
+      (map-apply
+       (lambda (k v) (cons k (map-elt v 'version)))
+       true-dependencies))))
 
 (defun npm-manager--read-dep-type (package-name)
   "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.
@@ -291,12 +292,13 @@ Returns a list: (type requested-version)."
 Use when `npm-manager--list-installed-versions' doesn't work."
   (unless npm-manager-package-json (error "Missing package.json"))
 
-  (append
-   (map-elt npm-manager-package-json 'dependencies) ;; list of cons cells (package-symbol . "version")
-   (map-elt npm-manager-package-json 'devDependencies)
-   (map-elt npm-manager-package-json 'peerDependencies)
-   (map-elt npm-manager-package-json 'optionalDependencies)
-   (map-elt npm-manager-package-json 'bundleDependencies)))
+  (map-keys
+   (append
+    (map-elt npm-manager-package-json 'dependencies) ;; list of cons cells (package-symbol . "version")
+    (map-elt npm-manager-package-json 'devDependencies)
+    (map-elt npm-manager-package-json 'peerDependencies)
+    (map-elt npm-manager-package-json 'optionalDependencies)
+    (map-elt npm-manager-package-json 'bundleDependencies))))
 
 (defun npm-manager--read-vuln (package-name)
   "Get vulnerability reports for PACKAGE-NAME symbol.

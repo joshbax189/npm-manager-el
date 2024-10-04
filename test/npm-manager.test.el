@@ -40,6 +40,7 @@
      (npm-manager--consume-json-buffer))
    (should (not (buffer-live-p test-buffer)))))
 
+;; TODO
 ;;;; npm-manager--change-handler
 ;;;; npm-manager--set-package-watch
 ;;;; npm-manager--remove-package-watch
@@ -49,7 +50,7 @@
   "Should return path to package.json for the current directory."
   (let ((default-directory (expand-file-name "./basic_project")))
     (should (equal (expand-file-name "./package.json")
-             (npm-manager--get-package-json-path))))
+                   (npm-manager--get-package-json-path))))
   ;; also test in a subdirectory
   (let ((expected-name (expand-file-name "./basic_project/package.json"))
         (default-directory (expand-file-name "./basic_project/node_modules")))
@@ -259,20 +260,20 @@
   (funcall done))
 
 ;;;; npm-manager
-;; can display packages
 (ert-deftest-async npm-manager/test-basic-display (done)
   "Can display packages."
-  ;; TODO this may need to clear the created buffer before/after test
-  (aio-listen (npm-manager-test--init-test-folder "foo" '("color" "jose"))
-              (lambda (_x)
-                (let ((default-directory (expand-file-name "foo/")))
-                  (message "here")
-                  (npm-manager)
-                  (aio-wait-for (aio-sleep 3))
-                  ;; check first line
-                  (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
-                                 "color req ^4.2.3 4.2.3"))
-                  (funcall done)))))
+  (kill-matching-buffers-no-ask "NPM .*/foo/")
+  ;; TODO why doesn't it work when working with an existing buffer?
+  (aio-listen
+   (npm-manager-test--init-test-folder "foo" '("color" "jose"))
+   (lambda (_x)
+     (let ((default-directory (expand-file-name "foo/")))
+       (npm-manager)
+       (aio-wait-for (aio-sleep 3))
+       ;; check first line
+       (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
+                      "color req ^4.2.3 4.2.3"))
+       (funcall done)))))
 
 ;; works with no package-lock
 ;; works with no node_modules

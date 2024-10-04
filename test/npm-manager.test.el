@@ -40,10 +40,40 @@
      (npm-manager--consume-json-buffer))
    (should (not (buffer-live-p test-buffer)))))
 
-;; TODO
 ;;;; npm-manager--change-handler
 ;;;; npm-manager--set-package-watch
 ;;;; npm-manager--remove-package-watch
+;; better to have integration tests for these:
+(ert-deftest-async npm-manager/test-file-watch (done)
+  "External modifications to package.json should be reflected."
+  (kill-matching-buffers-no-ask "NPM .*/foo/")
+  (aio-listen
+   (npm-manager-test--init-test-folder "foo" '("color" "jose"))
+   (lambda (_x)
+     (let ((default-directory (expand-file-name "foo/"))
+           saved-watcher)
+       (npm-manager)
+       (aio-wait-for (aio-sleep 3))
+       ;; package watch is set
+       (should npm-manager-package-json-watcher)
+       ;; external change to file triggers a change
+       (goto-char (point-min))
+       (if (re-search-forward "rimraf" nil 't)
+           ;; if it exists, delete
+           (progn
+             (shell-command "npm uninstall rimraf")
+             (should-not (re-search-forward "rimraf" nil 't)))
+         ;; otherwise install
+         (shell-command "npm i rimraf")
+         (should (re-search-forward "rimraf" nil 't)))
+
+       ;; watch should be removed on quit
+       (setq saved-watcher npm-manager-package-json-watcher)
+       (should saved-watcher) ;; sanity check
+       (kill-current-buffer)
+
+       (should-not (gethash saved-watcher file-notify-descriptors))
+       (funcall done)))))
 
 ;;;; npm-manager--get-package-json-path
 (ert-deftest npm-manager--get-package-json-path/test ()

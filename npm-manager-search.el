@@ -72,7 +72,7 @@ JSON search result."
           (((&plist :error the-error) . res-buffer)
            (aio-await (aio-url-retrieve registry-url))))
     (if the-error
-        (signal the-error)
+        (signal 'error the-error)
       (with-current-buffer res-buffer
         (goto-char (point-min))
         (while (looking-at "^.")

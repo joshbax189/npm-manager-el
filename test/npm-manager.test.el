@@ -95,14 +95,17 @@
       (should (not npm-manager-package-json)))))
 
 ;;;; npm-manager--run-package-audit
-(ert-deftest-async npm-manager--run-package-audit/test-async (done-1)
+(ert-deftest-async npm-manager--run-package-audit/test-async (done)
   "Tests default behaviour."
   (let ((default-directory (expand-file-name "basic_project")))
-   (with-temp-buffer
-     (aio-wait-for (npm-manager--run-package-audit (current-buffer)))
-     ;; output in npm-manager-audit-json
-     (should npm-manager-audit-json)
-     (funcall done-1))))
+    (with-mock
+      ;; Must refresh tablist
+      (mock (tablist-revert))
+      (with-temp-buffer
+        (aio-wait-for (npm-manager--run-package-audit (current-buffer)))
+        ;; output in npm-manager-audit-json
+        (should npm-manager-audit-json)
+        (funcall done)))))
 
 (ert-deftest-async npm-manager--run-package-audit/test-empty-async (done-1)
   "Tests behaviour when no node_modules."

@@ -227,16 +227,14 @@ DEPENDENCIES is the output of npm list --json."
           (propertized-name (if (equal dependency "req")
                                 (propertize name 'font-lock-face 'bold)
                               name))
-          (installed-version (map-nested-elt dependencies (list package-name 'version)))
+          (installed-version (map-nested-elt dependencies `(,package-name version)))
           (vulnerabilities (npm-manager--read-vuln package-name)))
-
-   (apply #'vector
-          (list
-           propertized-name
-           dependency
-           requested-version
-           (or installed-version "-")
-           vulnerabilities))))
+   (vector
+    propertized-name
+    dependency
+    requested-version
+    (or installed-version "-")
+    vulnerabilities)))
 
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."

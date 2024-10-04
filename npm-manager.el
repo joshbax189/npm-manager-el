@@ -159,19 +159,24 @@ Returns an `aio-promise' containing the parsed JSON."
                    (cond
                     ((equal string "run\n") nil)
                     ((equal string "finished\n")
-                     (let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
-                       (aio-resolve promise (lambda () buffer-json))))
+                     (aio-with-promise promise
+                       (condition-case nil
+                           (npm-manager--consume-json-buffer (process-buffer proc))
+                         (error
+                          (error "Error parsing JSON result")))))
                     ((string-prefix-p "exited abnormally" string)
                      ;; some npm commands give non-zero exit code AND produce the output we want!
                      (message "npm process errors, see error buffer")
-                     (condition-case nil
-                         (when-let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
-                           ;; in this case there is an error prop with a description
-                           (aio-resolve promise (lambda () buffer-json)))
-                       (error
-                        (message "npm process %s" string)
-                        (message "see buffer %s" (process-buffer proc))
-                        (aio-resolve promise (lambda () (error string))))))
+                     (aio-with-promise promise
+                       (condition-case nil
+                           (when-let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
+                             (if-let ((the-error (map-elt buffer-json 'error)))
+                                 (error the-error)
+                               buffer-json))
+                         (error
+                          (message "npm process %s" string)
+                          (message "see buffer %s" (process-buffer proc))
+                          (error string)))))
                     ('t
                      (message "npm process %s" string))))))))
 

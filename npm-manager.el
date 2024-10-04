@@ -239,12 +239,12 @@ DEPENDENCIES is the output of npm list --json."
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
   (interactive)
-  (unless npm-manager-package-json (npm-manager--parse-package-json))
+  (unless npm-manager-package-json
+    (npm-manager--parse-package-json))
   ;; trigger async call but don't block
-  (unless npm-manager-audit-json (npm-manager--run-package-audit (current-buffer)))
-
-  (message (map-elt npm-manager-package-json 'name))
-  (message (map-elt npm-manager-package-json 'version))
+  (unless npm-manager-audit-json
+    (npm-manager--run-package-audit (current-buffer)))
+  (message "%s %s" (map-elt npm-manager-package-json 'name) (map-elt npm-manager-package-json 'version))
   (let* ((installed-packages (aio-wait-for (npm-manager--list-installed-versions)))
          (package-names (if installed-packages
                             (map-keys installed-packages)

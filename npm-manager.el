@@ -255,17 +255,21 @@ DEPENDENCIES is the output of npm list --json."
            package-names)))
 
 (aio-defun npm-manager--list-installed-versions ()
-  "Return the dependencies prop of `npm list' output.
-This is a list of installed dependency versions."
-  (condition-case nil
-      (let* ((output (aio-await (npm-manager--capture-command "npm list --json")))
-             (all-dependencies (map-elt output 'dependencies))
-             ;; remove dependencies marked "extraneous"
-             (filtered-dependencies (--filter
-                                     (not (map-nested-elt all-dependencies `(,it extraneous)))
-                                     all-dependencies)))
-        filtered-dependencies)
-    (error '())))
+  "Return a list of installed dependency packages and their versions.
+Example output:
+((camelcase (version . \"8.0.0\")
+            (resolved . \"https://registry.npmjs.org/camelcase/-/camelcase-8.0.0.tgz\")
+            (overridden . :false))
+(change-case (version . \"5.4.4\")
+             (resolved . \"https://registry.npmjs.org/change-case/-/change-case-5.4.4.tgz\")
+             (overridden . :false)))"
+  (ignore-errors
+    (let* ((installed-packages (aio-await (npm-manager--capture-command "npm list --json")))
+           (dependencies (map-elt installed-packages 'dependencies)))
+      ;; remove dependencies marked "extraneous"
+      (--remove
+       (map-nested-elt dependencies `(,it extraneous))
+       dependencies))))
 
 (defun npm-manager--read-dep-type (package-name)
   "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.

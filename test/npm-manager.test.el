@@ -137,9 +137,16 @@
   (funcall done))
 
 (ert-deftest-async npm-manager--capture-command/test-error (done)
-  "When npm produces an error, should error."
+  "When npm produces a JSON formatted error, should error."
   (let ((default-directory (expand-file-name "empty_project/")))
+    ;; output is { error: foo } and non-zero code
     (should-error (aio-wait-for (npm-manager--capture-command "npm show --json")))
+    (funcall done)))
+
+(ert-deftest-async npm-manager--capture-command/test-error-2 (done)
+  "When npm produces an error and no JSON output, should error."
+  (let ((default-directory (expand-file-name "empty_project/")))
+    (should-error (aio-wait-for (npm-manager--capture-command "npm eugh --json")))
     (funcall done)))
 
 (ert-deftest-async npm-manager--capture-command/test-error-output (done)

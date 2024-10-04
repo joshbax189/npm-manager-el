@@ -164,6 +164,28 @@
               (get-text-property 0 'font-lock-face (seq-elt result 0)))))))
 
 ;;;; npm-manager-refresh
+(ert-deftest npm-manager-refresh/test-initial ()
+  "Tests behaviour in a fresh buffer."
+  (with-mock
+    ;; should call package.json and audit
+    (mock (npm-manager--parse-package-json))
+    (mock (npm-manager--run-package-audit *))
+    ;; should call list-installed-versions
+    (mock (npm-manager--list-installed-versions) => (aio-sleep 1
+                                                               '((foo . 1) (bar . 2))))
+    (with-temp-buffer
+      (npm-manager-refresh))))
+
+(ert-deftest npm-manager-refresh/test-no-install ()
+  "Tests behaviour with no node_modules."
+  (with-mock
+    (stub npm-manager--list-installed-versions => (aio-sleep 1 nil))
+    ;; if nil, should call read-packages
+    (mock (npm-manager--read-packages) => '((foo . 1) (bar . 2)))
+    (with-temp-buffer
+      (setq npm-manager-audit-json '(()))
+      (setq npm-manager-package-json '(()))
+      (npm-manager-refresh))))
 
 ;;;; npm-manager--read-dep-type
 (ert-deftest npm-manager--read-dep-type/test-nil ()

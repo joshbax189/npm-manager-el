@@ -267,19 +267,24 @@ DEPENDENCIES is an alist of package name to version string."
   "Return an alist of installed dependency packages and their versions.
 Example output:
 ((camelcase . \"8.0.0\")
- (change-case . \"5.4.4\"))"
-  (ignore-errors
-    (let* ((installed-packages (aio-await (npm-manager--capture-command "npm list --json")))
-           (dependencies (map-elt installed-packages 'dependencies))
-           (dependencies (map-into dependencies 'alist))
-           ;; Remove dependencies marked "extraneous".
-           ;; These are the result of npm i --no-save for example.
-           (true-dependencies (--remove
-                               (map-elt (cdr it) 'extraneous)
-                               dependencies)))
-      (map-apply
-       (lambda (k v) (cons k (map-elt v 'version)))
-       true-dependencies))))
+ (change-case . \"5.4.4\"))
+
+When no packages are installed, or package listing results in an error,
+returns nil."
+  ;; For some reason ignore-errors returns the error object, not nil
+  (condition-case nil
+      (let* ((installed-packages (aio-await (npm-manager--capture-command "npm list --json")))
+             (dependencies (map-elt installed-packages 'dependencies))
+             (dependencies (map-into dependencies 'alist))
+             ;; Remove dependencies marked "extraneous".
+             ;; These are the result of npm i --no-save for example.
+             (true-dependencies (--remove
+                                 (map-elt (cdr it) 'extraneous)
+                                 dependencies)))
+        (map-apply
+         (lambda (k v) (cons k (map-elt v 'version)))
+         true-dependencies))
+    (error '())))
 
 (defun npm-manager--read-dep-type (package-name)
   "Look up dependency type (dev, peer, etc) of symbol PACKAGE-NAME.

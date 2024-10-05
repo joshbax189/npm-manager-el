@@ -1,0 +1,7 @@
+{
+  "name": "basic_project",
+  "devDependencies": {
+    "camelcase": "^8.0.0",
+    "change-case": "^5.4.4"
+  }
+}

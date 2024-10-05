@@ -168,15 +168,21 @@ Returns an `aio-promise' containing the parsed JSON."
                      ;; some npm commands give non-zero exit code AND produce the output we want!
                      (message "npm process errors, see error buffer")
                      (aio-with-promise promise
-                       (condition-case nil
-                           (when-let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
-                             (if-let ((the-error (map-elt buffer-json 'error)))
-                                 (error the-error)
-                               buffer-json))
-                         (error
-                          (message "npm process %s" string)
-                          (message "see buffer %s" (process-buffer proc))
-                          (error string)))))
+                       ;; first try to parse any JSON
+                       (let (buffer-json)
+                         (condition-case err
+                             (setq buffer-json (npm-manager--consume-json-buffer (process-buffer proc)))
+                             ;; cannot parse JSON so just give a generic error
+                             (error
+                              (message "caught %s" err)
+                              (message "npm process %s" string)
+                              (message "see buffer %s" "*NPM Manager process errors*")
+                              (error string)))
+                         ;; parsed JSON may contain an error prop
+                         (if-let ((the-error (map-elt buffer-json 'error)))
+                             (error "%s" the-error)
+                           ;; result
+                           buffer-json))))
                     ('t
                      (message "npm process %s" string))))))))
 

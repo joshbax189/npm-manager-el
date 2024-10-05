@@ -312,26 +312,41 @@
                       "color req ^4.2.3 4.2.3"))
        (funcall done)))))
 
-;; works with no package-lock
-;; works with no node_modules
+;; TODO works with no package-lock
 
-;;;; npm-manager-unload-function
+(ert-deftest-async npm-manager/test-no-installed (done)
+  "Can display packages when there is no node_modules."
+  (kill-matching-buffers-no-ask "NPM .*/missing_install_project/")
+  (let ((default-directory (expand-file-name "missing_install_project/")))
+    (npm-manager)
+    (aio-wait-for (aio-sleep 3))
+    ;; check first line
+    (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
+                   "camelcase dev ^8.0.0 -"))
+    (funcall done)))
 
 ;;;; npm-manager-uninstall
 (ert-deftest-async npm-manager/test-uninstall (done)
   "Can uninstall packages."
-  (aio-wait-for (npm-manager-test--init-test-folder "foo" '("color" "jose")))
-  (let ((default-directory (concat default-directory "foo/")))
-    (npm-manager)
-    (aio-wait-for (aio-sleep 3))
-    (beginning-of-buffer)
-    (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
-    ;; (aio-wait-for (npm-manager-uninstall))
-    ;; (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))
-    ))
+  (kill-matching-buffers-no-ask "NPM .*/foo/")
+  (aio-listen
+   (npm-manager-test--init-test-folder "foo" '("color"))
+   (lambda (_x)
+     (let ((default-directory (concat default-directory "foo/")))
+       (npm-manager)
+       (aio-wait-for (aio-sleep 3))
+       (beginning-of-buffer)
+       (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
+       ;; TODO unsure why this doesn't work
+       ;; (aio-wait-for (npm-manager-uninstall))
+       ;; (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))
+       (funcall done)))))
 
-;; ./npm-manager.el:307:(aio-defun npm-manager-install-types-package (base-package-name)
-;; ./npm-manager.el:318:(aio-defun npm-manager-install-packages ()
-;; ./npm-manager.el:326:(aio-defun npm-manager-change-package-type (new-type)
+;; npm-manager-install-types-package (base-package-name)
+;; npm-manager-install-packages ()
+;; npm-manager-change-package-type (new-type)
 
 ;;;; npm-manager-mode
+;;;; npm-manager-unload-function
+
+;;; npm-manager.test.el ends here

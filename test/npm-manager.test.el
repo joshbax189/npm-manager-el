@@ -275,7 +275,7 @@
   (funcall done))
 
 (ert-deftest-async npm-manager--list-installed-versions/test-extraneous (done)
-  "List installed packages in JSON."
+  "Extraneous packages should not be listed."
   (with-mock
     (stub npm-manager--capture-command => (aio-sleep 0.1 '((dependencies . ((foo . ((extraneous . t))))))))
     (let ((result (aio-wait-for (npm-manager--list-installed-versions))))
@@ -283,8 +283,15 @@
   (funcall done))
 
 (ert-deftest-async npm-manager--list-installed-versions/test-empty (done)
-  "List installed packages in JSON."
+  "Should return nil when no package.json."
   (let* ((default-directory (expand-file-name "./empty_project"))
+         (result (aio-wait-for (npm-manager--list-installed-versions))))
+    (should (not result)))
+  (funcall done))
+
+(ert-deftest-async npm-manager--list-installed-versions/test-missing (done)
+  "Should return nil when no node_modules."
+  (let* ((default-directory (expand-file-name "./missing_install_project"))
          (result (aio-wait-for (npm-manager--list-installed-versions))))
     (should (not result)))
   (funcall done))

@@ -195,8 +195,8 @@ Command will be like `npm COMMAND FLAGS ARGS' where:
   ARGS is a string.
 
 Returns an `aio-promise' that is fulfilled with the output buffer."
-  (-let (((callback . promise) (aio-make-callback :once 't))
-         (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
+  (let ((promise (aio-promise))
+        (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
     (prog1
         promise
       (setq flags (or flags ""))
@@ -225,8 +225,9 @@ Returns an `aio-promise' that is fulfilled with the output buffer."
                      (with-current-buffer (process-buffer proc)
                        (shell-mode)
                        (view-mode)
-                       (pop-to-buffer (current-buffer))
-                       (funcall callback (current-buffer))))
+                       (pop-to-buffer (current-buffer)))
+                     (aio-with-promise promise
+                       (process-buffer proc)))
                     ('t (message string))))))))
 
 (defun npm-manager--make-entry (dependencies package-name)

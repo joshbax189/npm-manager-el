@@ -187,8 +187,24 @@
                      'vulnerabilities))
     (funcall done)))
 
-;; TODO
 ;;;; npm-manager--display-command
+(ert-deftest-async npm-manager--display-command/test (done)
+  "Tests normal behaviour."
+  (let ((result-buffer (aio-wait-for (npm-manager--display-command "version" nil nil))))
+    (with-current-buffer result-buffer
+      (should (buffer-string))
+      (should (equal major-mode 'shell-mode))
+      (kill-current-buffer))
+    (funcall done)))
+
+(ert-deftest-async npm-manager--display-command/test-error (done)
+  "When npm produces a JSON formatted error, should error."
+  (let* ((default-directory (expand-file-name "empty_project/"))
+         (result-buffer (aio-wait-for (npm-manager--display-command "show" nil nil))))
+    (with-current-buffer result-buffer
+      (should (buffer-string))
+      (kill-current-buffer)
+      (funcall done))))
 
 ;;;; npm-manager--make-entry
 (ert-deftest npm-manager--make-entry/test ()

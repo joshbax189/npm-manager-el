@@ -78,18 +78,18 @@
 ;;;; npm-manager--get-package-json-path
 (ert-deftest npm-manager--get-package-json-path/test ()
   "Should return path to package.json for the current directory."
-  (let ((default-directory (expand-file-name "./basic_project")))
+  (let ((default-directory (expand-file-name "test/basic_project" (project-root (project-current)))))
     (should (equal (expand-file-name "./package.json")
                    (npm-manager--get-package-json-path))))
   ;; also test in a subdirectory
-  (let ((expected-name (expand-file-name "./basic_project/package.json"))
-        (default-directory (expand-file-name "./basic_project/node_modules")))
+  (let ((expected-name (expand-file-name "test/basic_project/package.json" (project-root (project-current))))
+        (default-directory (expand-file-name "test/basic_project/node_modules" (project-root (project-current)))))
     (should (equal expected-name
                    (npm-manager--get-package-json-path)))))
 
 (ert-deftest npm-manager--get-package-json-path/test-empty ()
   "Tests behaviour in empty project."
-  (let ((default-directory (expand-file-name "./empty_project")))
+  (let ((default-directory (expand-file-name "test/empty_project" (project-root (project-current)))))
     (should (equal (expand-file-name "./package.json")
              (npm-manager--get-package-json-path)))))
 
@@ -97,19 +97,19 @@
   "List installed packages in JSON."
   (npm-manager-test--init-test-folder "foo" '("color" "jose"))
   ;; with normal setup
-  (let* ((default-directory (concat default-directory "foo/"))
+  (let* ((default-directory (expand-file-name "foo/"))
          (result (npm-manager--get-node-modules-path)))
     (should (equal result
-                   (concat default-directory "node_modules"))))
+                   (expand-file-name "node_modules"))))
   ;; with no node_modules
   (should (equal (npm-manager--get-node-modules-path)
-                 (concat default-directory "node_modules"))))
+                 (expand-file-name "node_modules"))))
 
 ;;;; npm-manager--parse-package-json
 (ert-deftest npm-manager--parse-package-json/test ()
   "Tests default case."
   ;; calls package-json-path, which requires default-directory
-  (let ((default-directory (expand-file-name "basic_project")))
+  (let ((default-directory (expand-file-name "test/basic_project" (project-root (project-current)))))
     ;; sets package-json in current buffer
     (with-temp-buffer
       (npm-manager--parse-package-json)
@@ -128,7 +128,7 @@
 ;;;; npm-manager--run-package-audit
 (ert-deftest-async npm-manager--run-package-audit/test-async (done)
   "Tests default behaviour."
-  (let ((default-directory (expand-file-name "basic_project")))
+  (let ((default-directory (expand-file-name "test/basic_project" (project-root (project-current)))))
     (with-mock
       ;; Must refresh tablist
       (mock (tablist-revert))
@@ -140,7 +140,7 @@
 
 (ert-deftest-async npm-manager--run-package-audit/test-empty-async (done-1)
   "Tests behaviour when no node_modules."
-  (let ((default-directory (expand-file-name "empty_project")))
+  (let ((default-directory (expand-file-name "test/empty_project" (project-root (project-current)))))
    (with-temp-buffer
      (aio-wait-for (npm-manager--run-package-audit (current-buffer)))
      ;; output in npm-manager-audit-json
@@ -169,20 +169,20 @@
 
 (ert-deftest-async npm-manager--capture-command/test-error (done)
   "When npm produces a JSON formatted error, should error."
-  (let ((default-directory (expand-file-name "empty_project/")))
+  (let ((default-directory (expand-file-name "test/empty_project/" (project-root (project-current)))))
     ;; output is { error: foo } and non-zero code
     (should-error (aio-wait-for (npm-manager--capture-command "npm show --json")))
     (funcall done)))
 
 (ert-deftest-async npm-manager--capture-command/test-error-2 (done)
   "When npm produces an error and no JSON output, should error."
-  (let ((default-directory (expand-file-name "empty_project/")))
+  (let ((default-directory (expand-file-name "test/empty_project/" (project-root (project-current)))))
     (should-error (aio-wait-for (npm-manager--capture-command "npm eugh --json")))
     (funcall done)))
 
 (ert-deftest-async npm-manager--capture-command/test-error-output (done)
   "When npm has non-zero exit and output, should return output."
-  (let ((default-directory (expand-file-name "bad_audit_project/")))
+  (let ((default-directory (expand-file-name "test/bad_audit_project/" (project-root (project-current)))))
     (should (map-elt (aio-wait-for (npm-manager--capture-command "npm audit --json"))
                      'vulnerabilities))
     (funcall done)))
@@ -199,7 +199,7 @@
 
 (ert-deftest-async npm-manager--display-command/test-error (done)
   "When npm produces a JSON formatted error, should error."
-  (let* ((default-directory (expand-file-name "empty_project/"))
+  (let* ((default-directory (expand-file-name "test/empty_project/" (project-root (project-current))))
          (result-buffer (aio-wait-for (npm-manager--display-command "show" nil nil))))
     (with-current-buffer result-buffer
       (should (buffer-string))
@@ -269,7 +269,7 @@
 
 (ert-deftest-async npm-manager--read-packages/test-match-list-output (done)
   "Should match output of list-installed-versions."
-  (let* ((default-directory (expand-file-name "./basic_project"))
+  (let* ((default-directory (expand-file-name "test/basic_project" (project-root (project-current))))
          (list-result (aio-wait-for (npm-manager--list-installed-versions))))
     (with-temp-buffer
       (npm-manager--parse-package-json)
@@ -284,7 +284,7 @@
 ;;;; npm-manager--list-installed-versions
 (ert-deftest-async npm-manager--list-installed-versions/test (done)
   "List installed packages in JSON."
-  (let* ((default-directory (expand-file-name "./basic_project"))
+  (let* ((default-directory (expand-file-name "test/basic_project" (project-root (project-current))))
          (result (aio-wait-for (npm-manager--list-installed-versions))))
     (should (equal result
                    '((camelcase . "8.0.0") (change-case . "5.4.4")))))
@@ -300,14 +300,14 @@
 
 (ert-deftest-async npm-manager--list-installed-versions/test-empty (done)
   "Should return nil when no package.json."
-  (let* ((default-directory (expand-file-name "./empty_project"))
+  (let* ((default-directory (expand-file-name "test/empty_project" (project-root (project-current))))
          (result (aio-wait-for (npm-manager--list-installed-versions))))
     (should (not result)))
   (funcall done))
 
 (ert-deftest-async npm-manager--list-installed-versions/test-missing (done)
   "Should return nil when no node_modules."
-  (let* ((default-directory (expand-file-name "./missing_install_project"))
+  (let* ((default-directory (expand-file-name "test/missing_install_project" (project-root (project-current))))
          (result (aio-wait-for (npm-manager--list-installed-versions))))
     (should (not result)))
   (funcall done))
@@ -333,7 +333,7 @@
 (ert-deftest-async npm-manager/test-no-installed (done)
   "Can display packages when there is no node_modules."
   (kill-matching-buffers-no-ask "NPM .*/missing_install_project/")
-  (let ((default-directory (expand-file-name "missing_install_project/")))
+  (let ((default-directory (expand-file-name "test/missing_install_project/" (project-root (project-current)))))
     (npm-manager)
     (aio-wait-for (aio-sleep 3))
     ;; check first line

@@ -12,7 +12,7 @@ No specific configuration. Simply install from this repo.
 E.g. using =straight=
 #+begin_src emacs-lisp
 (use-package npm-manager
-  :straight (npm-manager :fetcher git :url "https://github.com/joshbax189/npm-manager-el"))
+  :straight (npm-manager :type git :host github :repo "joshbax189/npm-manager-el"))
 #+end_src
 
 ** Usage and Features
@@ -35,6 +35,8 @@ You can install packages directly from search results too.
 - inspect audit reports interactively
 
 ** Changelog
+*** 0.1.2
+- Fix for package search results containing emojis
 
 *** 0.1.1
 - Windows compatibility

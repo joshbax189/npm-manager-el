@@ -72,10 +72,11 @@ JSON search result."
        (goto-char (point-min))
        (while (looking-at "^.")
          (forward-line))
-       (prog1 (json-parse-string (buffer-substring
-                                  (point) (point-max))
-                                 :object-type 'alist)
-         (kill-buffer))))))
+       (let* ((s (buffer-substring (point) (point-max)))
+              ;; json-parse-string fails if encoding is not utf-8
+              (fixed (encode-coding-string s 'utf-8 't)))
+        (prog1 (json-parse-string fixed :object-type 'alist)
+          (kill-buffer)))))))
 
 (defun npm-manager-search--format-score (score-num)
   "Format SCORE-NUM for display in tablist."

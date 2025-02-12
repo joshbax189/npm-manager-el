@@ -54,33 +54,37 @@
   :type 'string
   :group 'npm-manager)
 
+(defun npm-manager-search--make-search-url (search-string)
+  "Make full search URL from SEARCH-STRING."
+  (format "%s/-/v1/search?size=%s&text=%s"
+          npm-manager-search-registry-host
+          npm-manager-search-result-limit
+          (url-encode-url search-string)))
+
 (aio-defun npm-manager-search--fetch (search-string)
- "Search for SEARCH-STRING using NPM registry API.
+  "Search for SEARCH-STRING using NPM registry API.
 
 Returns a promise that is fulfilled with the decoded
 JSON search result."
- (-let* ((registry-url
-          (format "%s/-/v1/search?size=%s&text=%s"
-                  npm-manager-search-registry-host
-                  npm-manager-search-result-limit
-                  search-string))
-         (((&plist :error the-error) . res-buffer)
-          (aio-await (aio-url-retrieve registry-url))))
-   (if the-error
-       (signal the-error)
-     (with-current-buffer res-buffer
-       (goto-char (point-min))
-       (while (looking-at "^.")
-         (forward-line))
-       (let* ((s (buffer-substring (point) (point-max)))
-              ;; json-parse-string fails if encoding is not utf-8
-              (fixed (encode-coding-string s 'utf-8 't)))
-        (prog1 (json-parse-string fixed :object-type 'alist)
-          (kill-buffer)))))))
 
 (defun npm-manager-search--format-score (score-num)
   "Format SCORE-NUM for display in tablist."
   (seq-take (number-to-string score-num) 4))
+  (-let* ((registry-url
+           (npm-manager-search--make-search-url search-string))
+          (((&plist :error the-error) . res-buffer)
+           (aio-await (aio-url-retrieve registry-url))))
+    (if the-error
+        (signal the-error)
+      (with-current-buffer res-buffer
+        (goto-char (point-min))
+        (while (looking-at "^.")
+          (forward-line))
+        (let* ((s (buffer-substring (point) (point-max)))
+               ;; json-parse-string fails if encoding is not utf-8
+               (fixed (encode-coding-string s 'utf-8 't)))
+          (prog1 (json-parse-string fixed :object-type 'alist)
+            (kill-buffer)))))))
 
 (defun npm-manager-search-refresh ()
   "Refresh the contents of NPM search list display."

@@ -148,20 +148,10 @@ JSON search result."
 ;;;###autoload
 (transient-define-prefix npm-manager-search ()
   "Search npm packages."
-  :incompatible '(("is:unstable" "not:unstable")
-                  ("is:insecure" "not:insecure"))
-
   ["Filters"
    ("a" "author" "author=")
    ("m" "maintainer" "maintainer=")
-   ("@" "scope" "scope=" :prompt "Package scope: ")
    ("k" "keywords" "keywords=" :prompt "Package keywords: ")]
-
-  ["Stability"
-   ("nu" "No packages whose version is < 1.0.0" "not:unstable")
-   ("u" "Only packages whose version is < 1.0.0)" "is:unstable")
-   ("ni" "No packages that are insecure or have vulnerable dependencies" "not:insecure")
-   ("i" "Only packages that are insecure or have vulnerable dependencies" "is:insecure" )]
   [("s" "Enter search text" npm-manager-search--search-suffix)])
 
 (defvar npm-manager-search-user-text "" "Last input.")

@@ -7,7 +7,7 @@
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Version: 0.1.2
+;; Package-Version: 0.2.0
 
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 

@@ -7,7 +7,7 @@
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Version: 0.1.1
+;; Package-Version: 0.2.0
 
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
@@ -38,6 +38,7 @@
 (require 'tablist)
 (require 'transient)
 (require 'url)
+(require 'files)
 (require 'npm-manager)
 
 (defvar npm-manager-search-string ""
@@ -54,55 +55,63 @@
   :type 'string
   :group 'npm-manager)
 
+(defun npm-manager-search--make-search-url (search-string)
+  "Make full search URL from SEARCH-STRING."
+  (format "%s/-/v1/search?size=%s&text=%s"
+          npm-manager-search-registry-host
+          npm-manager-search-result-limit
+          (url-encode-url search-string)))
+
 (aio-defun npm-manager-search--fetch (search-string)
- "Search for SEARCH-STRING using NPM registry API.
+  "Search for SEARCH-STRING using NPM registry API.
 
 Returns a promise that is fulfilled with the decoded
 JSON search result."
- (-let* ((registry-url
-          (format "%s/-/v1/search?size=%s&text=%s"
-                  npm-manager-search-registry-host
-                  npm-manager-search-result-limit
-                  search-string))
-         (((&plist :error the-error) . res-buffer)
-          (aio-await (aio-url-retrieve registry-url))))
-   (if the-error
-       (signal the-error)
-     (with-current-buffer res-buffer
-       (goto-char (point-min))
-       (while (looking-at "^.")
-         (forward-line))
-       (let* ((s (buffer-substring (point) (point-max)))
-              ;; json-parse-string fails if encoding is not utf-8
-              (fixed (encode-coding-string s 'utf-8 't)))
-        (prog1 (json-parse-string fixed :object-type 'alist)
-          (kill-buffer)))))))
+  (-let* ((registry-url
+           (npm-manager-search--make-search-url search-string))
+          (((&plist :error the-error) . res-buffer)
+           (aio-await (aio-url-retrieve registry-url))))
+    (if the-error
+        (signal the-error)
+      (with-current-buffer res-buffer
+        (goto-char (point-min))
+        (while (looking-at "^.")
+          (forward-line))
+        (let* ((s (buffer-substring (point) (point-max)))
+               ;; json-parse-string fails if encoding is not utf-8
+               (fixed (encode-coding-string s 'utf-8 't)))
+          (prog1 (json-parse-string fixed :object-type 'alist)
+            (kill-buffer)))))))
 
-(defun npm-manager-search--format-score (score-num)
-  "Format SCORE-NUM for display in tablist."
-  (seq-take (number-to-string score-num) 4))
+(defun npm-manager-search--package-to-entry (package-object)
+  "Convert npm registry PACKAGE-OBJECT to tablist entry."
+  ;; see https://www.npmjs.com/package/libnpmsearch#api
+  ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
+  (let* ((package (map-elt package-object 'package))
+         (package-name (map-elt package 'name))
+         (description (map-elt package 'description ""))
+         (publisher (map-nested-elt package '(publisher username) ""))
+         (date (map-elt package 'date))
+         (short-date (car (split-string date "T")))
+         (version (map-elt package 'version ""))
+         (weekly-downloads
+          (file-size-human-readable (map-nested-elt package-object '(downloads weekly) 0) 'si)))
+    (list
+     package-object
+     (vector
+      package-name
+      description
+      publisher
+      short-date
+      version
+      weekly-downloads))))
 
 (defun npm-manager-search-refresh ()
   "Refresh the contents of NPM search list display."
   (interactive)
-  ;; see https://www.npmjs.com/package/libnpmsearch#api
-  ;; and https://github.com/npm/registry/blob/master/docs/REGISTRY-API.md
   (let* ((result (aio-wait-for (npm-manager-search--fetch npm-manager-search-string)))
          (data (map-elt result 'objects)))
-    (--map (list it
-                 (let ((package (map-elt it 'package))
-                       (score (map-elt it 'score)))
-                   (let-alist package
-                     (vector .name
-                             (or .description "")
-                             (or (map-elt .author 'name)
-                                 "")
-                             (car (split-string .date "T"))
-                             .version
-                             (npm-manager-search--format-score (map-nested-elt score '(detail quality)))
-                             (npm-manager-search--format-score (map-nested-elt score '(detail popularity)))
-                             (npm-manager-search--format-score (map-nested-elt score '(detail maintenance)))))))
-           data)))
+    (seq-map #'npm-manager-search--package-to-entry data)))
 
 (defun npm-manager-search-info ()
   "Run `npm info` on the package at point."
@@ -148,20 +157,10 @@ JSON search result."
 ;;;###autoload
 (transient-define-prefix npm-manager-search ()
   "Search npm packages."
-  :incompatible '(("is:unstable" "not:unstable")
-                  ("is:insecure" "not:insecure"))
-
   ["Filters"
    ("a" "author" "author=")
    ("m" "maintainer" "maintainer=")
-   ("@" "scope" "scope=" :prompt "Package scope: ")
    ("k" "keywords" "keywords=" :prompt "Package keywords: ")]
-
-  ["Stability"
-   ("nu" "No packages whose version is < 1.0.0" "not:unstable")
-   ("u" "Only packages whose version is < 1.0.0)" "is:unstable")
-   ("ni" "No packages that are insecure or have vulnerable dependencies" "not:insecure")
-   ("i" "Only packages that are insecure or have vulnerable dependencies" "is:insecure" )]
   [("s" "Enter search text" npm-manager-search--search-suffix)])
 
 (defvar npm-manager-search-user-text "" "Last input.")
@@ -209,12 +208,10 @@ ORIGINAL-INPUT is the user input search string without modifiers."
   "NPM search result display major mode."
   (setq tabulated-list-format [("Name" 24 t)
                                ("Description" 48 t)
-                               ("Author" 18 t)
+                               ("Publisher" 18 t)
                                ("Date" 12 t)
                                ("Version" 12)
-                               ("Qual" 5 t)
-                               ("Pop" 5 t)
-                               ("Maint" 5 t)]
+                               ("Weekly DLs" 5 t)]
         tabulated-list-padding 2
         tabulated-list-entries #'npm-manager-search-refresh)
   (tabulated-list-init-header)

@@ -90,7 +90,7 @@ JSON search result."
   (let* ((package (map-elt package-object 'package))
          (package-name (map-elt package 'name))
          (description (map-elt package 'description ""))
-         (author (map-nested-elt package '(author name) ""))
+         (publisher (map-nested-elt package '(publisher username) ""))
          (date (map-elt package 'date))
          (short-date (car (split-string date "T")))
          (version (map-elt package 'version ""))
@@ -101,7 +101,7 @@ JSON search result."
      (vector
       package-name
       description
-      author
+      publisher
       short-date
       version
       weekly-downloads))))
@@ -208,7 +208,7 @@ ORIGINAL-INPUT is the user input search string without modifiers."
   "NPM search result display major mode."
   (setq tabulated-list-format [("Name" 24 t)
                                ("Description" 48 t)
-                               ("Author" 18 t)
+                               ("Publisher" 18 t)
                                ("Date" 12 t)
                                ("Version" 12)
                                ("Weekly DLs" 5 t)]

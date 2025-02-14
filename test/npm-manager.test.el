@@ -17,6 +17,12 @@
     ;; (shell-command (format "npm i %s" (string-join packages " ")))
     (npm-manager--capture-command (format "npm i --json %s" (string-join packages " ")))))
 
+(defun npm-manager-test--tidy-buffers-for (folder)
+  "Clean up buffers generated for project in FOLDER."
+  (kill-matching-buffers-no-ask (format "NPM .*/%s/" folder))
+  ;; this seems to be important so that newly created buffers with the same name don't capture any locals
+  (sit-for 2))
+
 (ert-deftest npm-manager--consume-json-buffer/test ()
   "Parse JSON buffers."
   ;; empty
@@ -35,10 +41,10 @@
 
   ;; should kill buffer
   (let ((test-buffer (generate-new-buffer "foo")))
-   (with-current-buffer test-buffer
-     (insert "{}")
-     (npm-manager--consume-json-buffer))
-   (should (not (buffer-live-p test-buffer)))))
+    (with-current-buffer test-buffer
+      (insert "{}")
+      (npm-manager--consume-json-buffer))
+    (should (not (buffer-live-p test-buffer)))))
 
 ;;;; npm-manager--change-handler
 ;;;; npm-manager--set-package-watch
@@ -46,34 +52,39 @@
 ;; better to have integration tests for these:
 (ert-deftest-async npm-manager/test-file-watch (done)
   "External modifications to package.json should be reflected."
-  (kill-matching-buffers-no-ask "NPM .*/foo/")
-  (aio-listen
-   (npm-manager-test--init-test-folder "foo" '("color" "jose"))
-   (lambda (_x)
-     (let ((default-directory (expand-file-name "foo/"))
-           saved-watcher)
-       (npm-manager)
-       (aio-wait-for (aio-sleep 3))
-       ;; package watch is set
-       (should npm-manager-package-json-watcher)
-       ;; external change to file triggers a change
-       (goto-char (point-min))
-       (if (re-search-forward "rimraf" nil 't)
-           ;; if it exists, delete
-           (progn
-             (shell-command "npm uninstall rimraf")
-             (should-not (re-search-forward "rimraf" nil 't)))
-         ;; otherwise install
-         (shell-command "npm i rimraf")
-         (should (re-search-forward "rimraf" nil 't)))
+  (npm-manager-test--tidy-buffers-for "foo")
+  (aio-wait-for (npm-manager-test--init-test-folder "foo" '("color" "jose")))
+  (let ((default-directory (expand-file-name "foo/"))
+        saved-watcher)
+    (npm-manager)
+    (sleep-for 1)
+    (message "npm-manager/test-file-watch: %s"
+             "check package watch is set")
+    (should (equal major-mode #'npm-manager-mode))
+    (should npm-manager-package-json-watcher)
+    ;; external change to file triggers a change
+    (goto-char (point-min))
+    (if (re-search-forward "rimraf" nil 't)
+        ;; if it exists, delete
+        (progn
+          (message "npm-manager/test-file-watch: %s"
+                   "deleting existing rimraf package")
+          (shell-command "npm uninstall rimraf")
+          (sleep-for 1)
+          (should-not (re-search-forward "rimraf" nil 't)))
+      (message "npm-manager/test-file-watch: %s"
+               "installing rimraf package")
+      (shell-command "npm i rimraf")
+      (sit-for 2)
+      (should (re-search-forward "rimraf" nil 't)))
 
-       ;; watch should be removed on quit
-       (setq saved-watcher npm-manager-package-json-watcher)
-       (should saved-watcher) ;; sanity check
-       (kill-current-buffer)
+    ;; watch should be removed on quit
+    (setq saved-watcher npm-manager-package-json-watcher)
+    (should saved-watcher) ;; sanity check
+    (kill-current-buffer)
 
-       (should-not (gethash saved-watcher file-notify-descriptors))
-       (funcall done)))))
+    (should-not (gethash saved-watcher file-notify-descriptors))
+    (funcall done)))
 
 ;;;; npm-manager--get-package-json-path
 (ert-deftest npm-manager--get-package-json-path/test ()
@@ -315,27 +326,25 @@
 ;;;; npm-manager
 (ert-deftest-async npm-manager/test-basic-display (done)
   "Can display packages."
-  (kill-matching-buffers-no-ask "NPM .*/foo/")
-  ;; TODO why doesn't it work when working with an existing buffer?
-  (aio-listen
-   (npm-manager-test--init-test-folder "foo" '("color" "jose"))
-   (lambda (_x)
-     (let ((default-directory (expand-file-name "foo/")))
-       (npm-manager)
-       (aio-wait-for (aio-sleep 3))
-       ;; check first line
-       (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
-                      "color req ^4.2.3 4.2.3"))
-       (funcall done)))))
+  (npm-manager-test--tidy-buffers-for "foo")
+  (aio-wait-for (npm-manager-test--init-test-folder "foo" '("color" "jose")))
+  (let ((default-directory (expand-file-name "foo/")))
+    (npm-manager)
+    (sleep-for 1)
+    ;; check first line
+    ;; TODO this fails depending on which pacakge is available!
+    (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
+                   "color req ^4.2.3 4.2.3"))
+    (funcall done)))
 
 ;; TODO works with no package-lock
 
 (ert-deftest-async npm-manager/test-no-installed (done)
   "Can display packages when there is no node_modules."
-  (kill-matching-buffers-no-ask "NPM .*/missing_install_project/")
+  (npm-manager-test--tidy-buffers-for "missing_install_project/")
   (let ((default-directory (expand-file-name "test/missing_install_project/" (project-root (project-current)))))
     (npm-manager)
-    (aio-wait-for (aio-sleep 3))
+    (sleep-for 1)
     ;; check first line
     (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
                    "camelcase dev ^8.0.0 -"))
@@ -344,19 +353,18 @@
 ;;;; npm-manager-uninstall
 (ert-deftest-async npm-manager/test-uninstall (done)
   "Can uninstall packages."
-  (kill-matching-buffers-no-ask "NPM .*/foo/")
-  (aio-listen
-   (npm-manager-test--init-test-folder "foo" '("color"))
-   (lambda (_x)
-     (let ((default-directory (concat default-directory "foo/")))
-       (npm-manager)
-       (aio-wait-for (aio-sleep 3))
-       (beginning-of-buffer)
-       (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
-       ;; TODO unsure why this doesn't work
-       ;; (aio-wait-for (npm-manager-uninstall))
-       ;; (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))
-       (funcall done)))))
+  (npm-manager-test--tidy-buffers-for "foo")
+  (aio-wait-for (npm-manager-test--init-test-folder "foo" '("color")))
+  (let ((default-directory (concat default-directory "foo/")))
+    (npm-manager)
+    (sleep-for 3)
+    (beginning-of-buffer)
+    (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
+    (aio-wait-for (npm-manager-uninstall))
+    (sit-for 1)
+    ;; TODO should check whole buffer
+    (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))
+    (funcall done)))
 
 ;; npm-manager-install-types-package (base-package-name)
 ;; npm-manager-install-packages ()

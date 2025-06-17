@@ -83,19 +83,19 @@
       (should npm-manager-package-json-watcher)
       ;; external change to file triggers a change
       (goto-char (point-min))
-      (npm-manager-test--await (npm-manager--capture-command (format "npm i --json %s" (string-join '("rimraf") " "))))
-      ;; TODO why is this second one required?
-      (sit-for 2)
+      (npm-manager-test--await (npm-manager--capture-command "npm uninstall --json jose"))
+      (sit-for 1)
 
-      (should (re-search-forward "rimraf" nil 't))
+      (should-not (re-search-forward "jose" nil 't))
 
       ;; watch should be removed on quit
       (setq saved-watcher npm-manager-package-json-watcher)
       (should saved-watcher) ;; sanity check
       (kill-current-buffer)
 
-      (should-not (gethash saved-watcher file-notify-descriptors))
-      (funcall done))))
+      (should-not (gethash saved-watcher file-notify-descriptors))))
+  (sit-for 1)
+  (funcall done))
 
 ;;;; npm-manager--get-package-json-path
 (ert-deftest npm-manager--get-package-json-path/test ()
@@ -307,7 +307,7 @@
 (ert-deftest-async npm-manager--list-installed-versions/test (done)
   "List installed packages in JSON."
   (let* ((default-directory (expand-file-name "test/basic_project" (project-root (project-current))))
-         (result (aio-wait-for (npm-manager--list-installed-versions))))
+         (result (npm-manager-test--await (npm-manager--list-installed-versions))))
     (should (equal result
                    '((camelcase . "8.0.0") (change-case . "5.4.4")))))
   (funcall done))
@@ -352,32 +352,34 @@
 (ert-deftest-async npm-manager/test-no-installed (done)
   "Can display packages when there is no node_modules."
   (ert-with-temp-directory dir
-   (let ((default-directory dir))
-     (npm-manager-test--await (npm-manager--capture-command "npm i --package-lock-only -D --json camelcase@^8.0.0"))
-     (npm-manager)
-     (sit-for 1)
-     ;; check first line
-     (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
-                    "camelcase dev ^8.0.0 -"))
-     (funcall done))))
+    (let ((default-directory dir))
+      (npm-manager-test--await (npm-manager--capture-command "npm i --package-lock-only -D --json camelcase@^8.0.0"))
+      (npm-manager)
+      (sit-for 1)
+      ;; check first line
+      (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
+                     "camelcase dev ^8.0.0 -"))
+      ))
+  (sit-for 1)
+  (funcall done))
 
 ;;;; npm-manager-uninstall
 (ert-deftest-async npm-manager/test-uninstall (done)
   "Can uninstall packages."
   (ert-with-temp-directory dir
-     (let ((default-directory dir))
-       (aio-wait-for (npm-manager--capture-command (format "npm i --json %s" (string-join '("color" "jose") " "))))
-       (npm-manager)
-       (sit-for 1)
-       (beginning-of-buffer)
-       (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
+    (let ((default-directory dir))
+      (aio-wait-for (npm-manager--capture-command (format "npm i --json %s" (string-join '("color" "jose") " "))))
+      (npm-manager)
+      (sit-for 1)
+      (beginning-of-buffer)
+      (should (equal (seq-elt (tabulated-list-get-entry) 0) "color"))
 
-       ;; TODO hack
-       (npm-manager-test--await (npm-manager-uninstall))
+      (npm-manager-test--await (npm-manager-uninstall))
 
-       ;; TODO should check whole buffer
-       (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))
-       (funcall done))))
+      ;; TODO should check whole buffer
+      (should (not (equal (seq-elt (tabulated-list-get-entry) 0) "color")))))
+  (sit-for 1)
+  (funcall done))
 
 ;; npm-manager-install-types-package (base-package-name)
 ;; npm-manager-install-packages ()

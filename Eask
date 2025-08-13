@@ -1,5 +1,5 @@
 (package "npm-manager"
-         "0.2.0"
+         "0.2.1"
          "Manage npm installations")
 
 (website-url "https://github.com/joshbax189/npm-manager-el")

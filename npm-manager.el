@@ -1,13 +1,13 @@
 ;;; npm-manager.el --- Manage npm installations   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2024 Josh Bax
+;; Copyright (C) 2024-2025 Josh Bax
 
 ;; Author: Josh Bax
 
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Version: 0.2.0
+;; Package-Version: 0.2.1
 
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 

@@ -35,6 +35,9 @@ You can install packages directly from search results too.
 - inspect audit reports interactively
 
 ** Changelog
+*** 0.2.1
+- Change some core functions to improve testability
+
 *** 0.2.0
 - Update search API
   - replace "Author" with "Publisher"

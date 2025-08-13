@@ -300,8 +300,8 @@
                (npm-manager--read-packages)))))
   (funcall done))
 
+;; TODO
 ;;;; npm-manager--read-vuln
-;;;; npm-manager-tree
 
 ;;;; npm-manager--list-installed-versions
 (ert-deftest-async npm-manager--list-installed-versions/test (done)
@@ -347,7 +347,19 @@
                    "color req ^4.2.3 4.2.3"))
     (funcall done)))
 
-;; TODO works with no package-lock
+(ert-deftest-async npm-manager/test-no-package-lock (done)
+  "Can display packages when there is no package-lock.json"
+  (ert-with-temp-directory dir
+    (let ((default-directory dir))
+      (npm-manager-test--await (npm-manager--capture-command "npm i --package-lock-only -D --json camelcase@^8.0.0"))
+      (delete-file "package-lock.json")
+      (npm-manager)
+      (sit-for 1)
+      ;; check first line
+      (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
+                     "camelcase dev ^8.0.0 -"))))
+  (sit-for 1)
+  (funcall done))
 
 (ert-deftest-async npm-manager/test-no-installed (done)
   "Can display packages when there is no node_modules."
@@ -358,8 +370,7 @@
       (sit-for 1)
       ;; check first line
       (should (equal (string-clean-whitespace (buffer-substring-no-properties (point-min) (pos-eol)))
-                     "camelcase dev ^8.0.0 -"))
-      ))
+                     "camelcase dev ^8.0.0 -"))))
   (sit-for 1)
   (funcall done))
 
@@ -381,11 +392,56 @@
   (sit-for 1)
   (funcall done))
 
-;; npm-manager-install-types-package (base-package-name)
-;; npm-manager-install-packages ()
-;; npm-manager-change-package-type (new-type)
+;;;; npm-manager-install-types-package (base-package-name)
+(ert-deftest-async npm-manager/test-install-types-package (done)
+  "Can install a types package."
+  (ert-with-temp-directory dir
+    (let ((default-directory dir))
+      (aio-wait-for (npm-manager--capture-command "npm i --json color"))
+      (npm-manager)
+      (sit-for 1)
+      (beginning-of-buffer)
+      (npm-manager-test--await (npm-manager-install-types-package "color"))
+      ;; TODO prefer this
+      ;; (call-interactively #'npm-manager-install-types-package)
+      (sit-for 1)
 
-;;;; npm-manager-mode
-;;;; npm-manager-unload-function
+      (should (re-search-forward "@types/color"))
+      (funcall done))))
+
+;;;; npm-manager-install-packages ()
+(ert-deftest-async npm-manager/test-install-packages-command (done)
+  "Can install package with user command."
+  (ert-with-temp-directory dir
+    (let ((default-directory dir))
+      (aio-wait-for (npm-manager--capture-command "npm i --package-lock-only --json color"))
+      (npm-manager)
+      (sit-for 1)
+
+      (npm-manager-test--await (npm-manager-install-packages))
+      (sit-for 1)
+
+      (beginning-of-buffer)
+      (should (string-match-p "color +req +[^[:space:]]+ +[0-9].[0-9].[0-9]" (buffer-substring-no-properties (point-min) (pos-eol))))
+      (sit-for 1)
+      (funcall done))))
+
+;;;; npm-manager-change-package-type
+(ert-deftest-async npm-manager/test-change-package-type (done)
+  "Can change package type to dev."
+  (ert-with-temp-directory dir
+    (let ((default-directory dir))
+      (aio-wait-for (npm-manager--capture-command "npm i --json color"))
+      (npm-manager)
+      (sit-for 1)
+      (beginning-of-buffer)
+      (should (string-match-p "color +req" (buffer-substring-no-properties (point-min) (pos-eol))))
+
+      (npm-manager-test--await (npm-manager-change-package-type "Dev"))
+      (sit-for 1)
+
+      (should (string-match-p "color +dev" (buffer-substring-no-properties (point-min) (pos-eol))))
+      (sit-for 1)
+      (funcall done))))
 
 ;;; npm-manager.test.el ends here

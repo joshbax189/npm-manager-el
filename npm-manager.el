@@ -1,13 +1,13 @@
 ;;; npm-manager.el --- Manage npm installations   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2024 Josh Bax
+;; Copyright (C) 2024-2025 Josh Bax
 
 ;; Author: Josh Bax
 
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Version: 0.2.0
+;; Package-Version: 0.2.1
 
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
@@ -159,19 +159,30 @@ Returns an `aio-promise' containing the parsed JSON."
                    (cond
                     ((equal string "run\n") nil)
                     ((equal string "finished\n")
-                     (let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
-                       (aio-resolve promise (lambda () buffer-json))))
+                     (aio-with-promise promise
+                       (condition-case nil
+                           (npm-manager--consume-json-buffer (process-buffer proc))
+                         (error
+                          (error "Error parsing JSON result")))))
                     ((string-prefix-p "exited abnormally" string)
                      ;; some npm commands give non-zero exit code AND produce the output we want!
                      (message "npm process errors, see error buffer")
-                     (condition-case nil
-                         (when-let ((buffer-json (npm-manager--consume-json-buffer (process-buffer proc))))
-                           ;; in this case there is an error prop with a description
-                           (aio-resolve promise (lambda () buffer-json)))
-                       (error
-                        (message "npm process %s" string)
-                        (message "see buffer %s" (process-buffer proc))
-                        (aio-resolve promise (lambda () (error string))))))
+                     (aio-with-promise promise
+                       ;; first try to parse any JSON
+                       (let (buffer-json)
+                         (condition-case err
+                             (setq buffer-json (npm-manager--consume-json-buffer (process-buffer proc)))
+                             ;; cannot parse JSON so just give a generic error
+                             (error
+                              (message "caught %s" err)
+                              (message "npm process %s" string)
+                              (message "see buffer %s" "*NPM Manager process errors*")
+                              (error string)))
+                         ;; parsed JSON may contain an error prop
+                         (if-let ((the-error (map-elt buffer-json 'error)))
+                             (error "%s" the-error)
+                           ;; result
+                           buffer-json))))
                     ('t
                      (message "npm process %s" string))))))))
 
@@ -184,8 +195,8 @@ Command will be like `npm COMMAND FLAGS ARGS' where:
   ARGS is a string.
 
 Returns an `aio-promise' that is fulfilled with the output buffer."
-  (-let (((callback . promise) (aio-make-callback :once 't))
-         (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
+  (let ((promise (aio-promise))
+        (proc-buffer (generate-new-buffer (format "*npm %s %s*" command args))))
     (prog1
         promise
       (setq flags (or flags ""))
@@ -214,57 +225,66 @@ Returns an `aio-promise' that is fulfilled with the output buffer."
                      (with-current-buffer (process-buffer proc)
                        (shell-mode)
                        (view-mode)
-                       (pop-to-buffer (current-buffer))
-                       (funcall callback (current-buffer))))
+                       (pop-to-buffer (current-buffer)))
+                     (aio-with-promise promise
+                       (process-buffer proc)))
                     ('t (message string))))))))
 
 (defun npm-manager--make-entry (dependencies package-name)
   "Create tablist entry given PACKAGE-NAME symbol.
 
-DEPENDENCIES is the output of npm list --json."
+DEPENDENCIES is an alist of package name to version string."
   (-let* (((dependency requested-version) (npm-manager--read-dep-type package-name))
           (name (symbol-name package-name))
           (propertized-name (if (equal dependency "req")
                                 (propertize name 'font-lock-face 'bold)
                               name))
-          (installed-version (map-nested-elt dependencies (list package-name 'version)))
+          (installed-version (map-elt dependencies package-name))
           (vulnerabilities (npm-manager--read-vuln package-name)))
-
-   (apply #'vector
-          (list
-           propertized-name
-           dependency
-           requested-version
-           (or installed-version "-")
-           vulnerabilities))))
+   (vector
+    propertized-name
+    dependency
+    requested-version
+    (or installed-version "-")
+    vulnerabilities)))
 
 (defun npm-manager-refresh ()
   "Refresh the contents of NPM manager display."
   (interactive)
-  (unless npm-manager-package-json (npm-manager--parse-package-json))
+  (unless npm-manager-package-json
+    (npm-manager--parse-package-json))
   ;; trigger async call but don't block
-  (unless npm-manager-audit-json (npm-manager--run-package-audit (current-buffer)))
-
-  (message (map-elt npm-manager-package-json 'name))
-  (message (map-elt npm-manager-package-json 'version))
+  (unless npm-manager-audit-json
+    (npm-manager--run-package-audit (current-buffer)))
+  (message "%s %s" (map-elt npm-manager-package-json 'name) (map-elt npm-manager-package-json 'version))
   (let* ((installed-packages (aio-wait-for (npm-manager--list-installed-versions)))
          (package-names (if installed-packages
                             (map-keys installed-packages)
-                          (map-keys (npm-manager--read-packages)))))
+                          (npm-manager--read-packages))))
     (--map (list it (npm-manager--make-entry installed-packages it))
            package-names)))
 
 (aio-defun npm-manager--list-installed-versions ()
-  "Return the dependencies prop of `npm list' output.
-This is a list of installed dependency versions."
+  "Return an alist of installed dependency packages and their versions.
+Example output:
+((camelcase . \"8.0.0\")
+ (change-case . \"5.4.4\"))
+
+When no packages are installed, or package listing results in an error,
+returns nil."
+  ;; For some reason ignore-errors returns the error object, not nil
   (condition-case nil
-      (let* ((output (aio-await (npm-manager--capture-command "npm list --json")))
-             (all-dependencies (map-elt output 'dependencies))
-             ;; remove dependencies marked "extraneous"
-             (filtered-dependencies (--filter
-                                     (not (map-nested-elt all-dependencies `(,it extraneous)))
-                                     all-dependencies)))
-        filtered-dependencies)
+      (let* ((installed-packages (aio-await (npm-manager--capture-command "npm list --json")))
+             (dependencies (map-elt installed-packages 'dependencies))
+             (dependencies (map-into dependencies 'alist))
+             ;; Remove dependencies marked "extraneous".
+             ;; These are the result of npm i --no-save for example.
+             (true-dependencies (--remove
+                                 (map-elt (cdr it) 'extraneous)
+                                 dependencies)))
+        (map-apply
+         (lambda (k v) (cons k (map-elt v 'version)))
+         true-dependencies))
     (error '())))
 
 (defun npm-manager--read-dep-type (package-name)
@@ -289,12 +309,13 @@ Returns a list: (type requested-version)."
 Use when `npm-manager--list-installed-versions' doesn't work."
   (unless npm-manager-package-json (error "Missing package.json"))
 
-  (append
-   (map-elt npm-manager-package-json 'dependencies) ;; list of cons cells (package-symbol . "version")
-   (map-elt npm-manager-package-json 'devDependencies)
-   (map-elt npm-manager-package-json 'peerDependencies)
-   (map-elt npm-manager-package-json 'optionalDependencies)
-   (map-elt npm-manager-package-json 'bundleDependencies)))
+  (map-keys
+   (append
+    (map-elt npm-manager-package-json 'dependencies) ;; list of cons cells (package-symbol . "version")
+    (map-elt npm-manager-package-json 'devDependencies)
+    (map-elt npm-manager-package-json 'peerDependencies)
+    (map-elt npm-manager-package-json 'optionalDependencies)
+    (map-elt npm-manager-package-json 'bundleDependencies))))
 
 (defun npm-manager--read-vuln (package-name)
   "Get vulnerability reports for PACKAGE-NAME symbol.

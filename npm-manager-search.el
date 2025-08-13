@@ -1,13 +1,13 @@
 ;;; npm-manager-search.el --- Search npm package registry   -*- lexical-binding: t -*-
 
-;; Copyright (C) 2024 Josh Bax
+;; Copyright (C) 2024-2025 Josh Bax
 
 ;; Author: Josh Bax
 
 ;; Keywords: languages
 ;; URL: https://github.com/joshbax189/npm-manager-el
 
-;; Package-Version: 0.2.0
+;; Package-Version: 0.2.1
 
 ;; Package-Requires: ((emacs "28.1") (aio "1.0") (dash "2.19.1") (tablist "1.1") (transient "0.7.1"))
 
@@ -72,7 +72,7 @@ JSON search result."
           (((&plist :error the-error) . res-buffer)
            (aio-await (aio-url-retrieve registry-url))))
     (if the-error
-        (signal the-error)
+        (signal 'error the-error)
       (with-current-buffer res-buffer
         (goto-char (point-min))
         (while (looking-at "^.")
